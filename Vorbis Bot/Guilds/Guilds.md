@@ -1,0 +1,1 @@
+# Guild info (When Vorbis joins a new guild, guild info gets stored here)

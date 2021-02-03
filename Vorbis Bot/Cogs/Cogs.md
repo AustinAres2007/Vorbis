@@ -1,0 +1,1 @@
+# All of the bots cogs get stored here

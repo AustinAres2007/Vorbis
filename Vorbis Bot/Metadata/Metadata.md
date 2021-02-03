@@ -1,0 +1,1 @@
+# General Song Metadata gets stored here (used for the /song command)

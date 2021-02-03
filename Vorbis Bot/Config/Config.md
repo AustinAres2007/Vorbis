@@ -1,0 +1,1 @@
+# Server Bot configs get stored here
