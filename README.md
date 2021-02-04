@@ -26,3 +26,7 @@ Discord Bot Vorbis
 # - Credit
 
 - Fabian Kuzbiel, Austin Ares
+
+# - Note
+
+- This is made for friends, and not supposed to be taken seriously.
