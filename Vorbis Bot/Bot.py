@@ -1236,7 +1236,7 @@ async def unban(ctx, *, member):
 async def setup(ctx, *, args):
 
     embed = discord.Embed(color=MEDIUM_PURPLE)
-    commands = ["help", "join_role", "max_warnings"]
+    commands = ["help", "join_role", "max_warnings", "blacklist"]
     arg = args.split(", ")
 
     if arg[0] == commands[0]:
@@ -1282,9 +1282,22 @@ async def setup(ctx, *, args):
         make_asset(file=config_location+ctx.guild.id+"max_warnings.json", mode="w+", data=data, indent=4)
 
         embed.set_author(name=f"I have set the Max Warnings to {new_max_warnings}")
-
+                     
+    elif arg[0] == commands[3]:
+       
+       blacklisted_players = arg[1]
+        
+       data = {}
+       data["setting1"] = {
+               "blacklist": blacklisted_players
+       
+       make_asset(file=config_location+ctx.guild.id+"blacklist.json", mode="w+", data=data, indentation=4)
+       
+       embed.set_author(name="Blacklisted Players > {blacklisted_players}")
+    
     await ctx.send(embed=embed)
     
+                       
 for filename in os.listdir(cog_location):
     if filename.endswith('.py'):
         client.load_extension(f'Cogs.{filename[:-3]}')    
