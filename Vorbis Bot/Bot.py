@@ -8,7 +8,7 @@ from discord.utils import get
 from discord import Spotify
 
 
-TOKEN = "Nzk4ODY3ODkzOTEwNzY1NTc5.X_7RtA.B8SHs4HRy5jIrFsQdsKM7XOf4Nw"
+TOKEN = "TOKEN_IS_NOT_PUBLIC"
 
 """Location Variables"""
 
