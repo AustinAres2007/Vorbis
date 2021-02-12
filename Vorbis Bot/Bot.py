@@ -9,7 +9,7 @@ from discord.utils import get
 from discord import Spotify
 from contextlib import closing
 
-TOKEN = "Nzk4ODY3ODkzOTEwNzY1NTc5.X_7RtA.ftzJLjHlFUDTsEN31JUylZwC2WQ"
+TOKEN = None
 
 """Location Variables"""
 
