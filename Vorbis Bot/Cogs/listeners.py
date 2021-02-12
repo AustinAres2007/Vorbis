@@ -29,12 +29,32 @@ def make_asset(file : os.PathLike, mode : str, data : dict, indent : int=4):
         
 def return_data(file : str, tabel : str, sub_tabel : str):
 
-    with open(f"{file}") as data:
+    if check_dirfile(path=file, Type="file"):
+        with open(f"{file}") as data:
 
-        RwText_Data = data.read()
-        RwJSON_Data = json.loads(RwText_Data)
+            RwText_Data = data.read()
+            RwJSON_Data = json.loads(RwText_Data)
 
-        return RwJSON_Data[tabel][sub_tabel]
+            return RwJSON_Data[tabel][sub_tabel]
+
+    else:
+        raise FileNotFoundError(f"{file} Path Not Found")     
+        
+def check_dirfile(path : os.PathLike, Type : str):
+
+    if Type == "dir":
+        if os.path.isdir(path):
+            return True
+        else:
+            return False
+
+    elif Type == "file":
+        if os.path.isfile(path):
+            return True
+        else:
+            return False
+    else:
+        raise TypeError(f"There is no file type with the type: {Type}! (Chose only > dir | file)")
 
 class listeners(commands.Cog):
 
@@ -50,11 +70,16 @@ class listeners(commands.Cog):
         try:
             guild = f"\\{message.guild.id}"
             full_user_path = user_location+guild
+            channel_path = f"{config_location}\\{message.guild.id}\\log_channel.json"
         except AttributeError:
             pass
         if message.author.id == 798867893910765579:
             return
 
+        if check_dirfile(path=channel_path, Type="file"):
+            channel_id = return_data(file=channel_path, tabel="setting1", sub_tabel="channel")
+
+            channel = self.client.get_channel(int(channel_id))
         global usr_exp, until_nxt_lvl, usr_lvl
 
         usr_exp = 0
@@ -86,7 +111,7 @@ class listeners(commands.Cog):
                 write_member.close()
 
         try:
-            print("Reading Users Current Level Data..")
+            
             with open(full_user_path+f"\\{member_id}\\{member_id}-exp.json", "r") as read_current_level:
 
                 text = read_current_level.read()
@@ -103,13 +128,12 @@ class listeners(commands.Cog):
                     data = {}
                     numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
                     level_numbers = [10, 20, 30, 40, 50]
-                    boosts = int(return_data(file=f"{guild_location}\\{guild_id}\\{guild_id}.json", tabel=f"{guild_id}", sub_tabel=f"{guild_id}-cunrt-boosts"))
 
-                    if boosts == 0:
+                    if message.guild.premium_tier == 0:
                         new_exp = usr_exp+1
-                    elif boosts == 2:
+                    elif message.guild.premium_tier == 1:
                         new_exp = usr_exp+2
-                    elif boosts == 4:
+                    elif message.guild.premium_tier == 2:
                         new_exp = usr_exp+3
 
 
@@ -119,7 +143,10 @@ class listeners(commands.Cog):
                         embed.add_field(name=f"You leveled up to level {usr_lvl+1}!", value="|")
                         embed.set_image(url=message.author.avatar_url)
 
-                        await self.client.get_guild(message.guild.id).get_channel(message.channel.id).send(embed=embed)
+                        if channel is not None:
+                            await channel.send(embed=embed)
+                        else:
+                            await self.client.get_guild(message.guild.id).get_channel(message.channel.id).send(embed=embed)
 
                         until_nxt_lvl = int(random.choice(level_numbers))
                         new_exp = 0
@@ -136,7 +163,6 @@ class listeners(commands.Cog):
                         else:
                             pass
 
-                    print("Updated Member EXP")
                     data[member_id] = ({
                         "member-exp": new_exp,
                         "member-level": usr_lvl,
@@ -149,96 +175,137 @@ class listeners(commands.Cog):
                 make_plr()
                 
         except FileNotFoundError:
-            print("Making User")
             if os.path.isdir(f"{user_location}\\{message.guild.id}\\{message.author.id}"):
                 pass
             else:
                 os.mkdir(f"{user_location}\\{message.guild.id}\\{message.author.id}")
 
             make_plr()
-
-            with open(f"{full_user_path}\\{member_id}\\{member_id}-exp.json", "w") as write_base_data:
                 
-                data = {}
+            data = {}
 
-                data[member_id] = ({
-                    "member-exp": 0,
-                    "member-level": 0,
-                    "member-until-next-lvl": 5
-                })
+            data[member_id] = ({
+                "member-exp": 0,
+                "member-level": 0,
+                "member-until-next-lvl": 5
+            })
 
-                json.dump(data, write_base_data, indent=4)
+            make_asset(file=f"{full_user_path}\\{member_id}\\{member_id}-exp.json", mode="w+", data=data, indent=4)
         
         
             
     
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        embed = discord.Embed(color=TERQ)
+
+        try:
+            if return_data(file=f"{config_location}\\{member.guild.id}\\whitelist.json", tabel="setting1", sub_tabel="whitelist") == bool(True):
+
+                embed.set_author(name="Whitelist is enabled on this server, you cannot join.")
+
+                await member.send(embed=embed)
+                return await member.kick(reason="Whitelist is enabled")
+
+                
+        except FileNotFoundError:
+            pass
+        c_path = f"{config_location}\\{member.guild.id}"
         guild = member.guild.id
         full_user_path = user_location+f"\\{guild}"
+        user_path = f"{full_user_path}\\{member.id}"
+        
+        
+        try:
+            blacklist = list(return_data(file=f"{c_path}\\blacklist.json", tabel="setting1", sub_tabel="blacklist"))
 
+        
+            if str(member.id) in blacklist:
+            
+                await member.send("You're blacklisted from this server.")
+                await member.kick(reason="Player was blacklisted from server")
+
+                if check_dirfile(path=f"{c_path}\\log_channel.json", Type="file") is True:
+                    channel_id = int(return_data(file=f"{c_path}\\log_channel.json", tabel="setting1", sub_tabel="channel")) 
+                    channel = self.client.get_channel(channel_id)
+
+                    if channel is None:
+                        return
+                    else:
+                        embed.set_author(name=f"Kicked {member.name}, Reason: Player was blacklisted")
+                        return await channel.send(embed=embed)
+                else:
+                    return
+
+        except FileNotFoundError:
+            pass
+        
         os.chdir(full_user_path)
 
-        if os.path.isdir(full_user_path+f"\\{member.id}"):
-            pass
-        else:
+        if os.path.isdir(full_user_path+f"\\{member.id}") != True:
             os.mkdir(f"{member.id}")
 
         name = member.name
         avatar = member.avatar_url
 
-        print(name)
-        print(avatar)
+        data = {}
+        member_level = {}
+        member_metadata = {}
 
-        with open(f"{full_user_path}\\{member.id}\\{member.id}.json", "w+") as write_member:
+        data['setting1'] = ({
+            "warnings": 0
+        })
 
-            member_metadata = {}
-            member_metadata[f'{member.id}'] = ({
-                "member-id": str(member.id),
-                "member-name": str(name),
-                "member-avatar": str(avatar),
-                "member-joindate": str(member.joined_at),
-                "member-exp": 0
-            })
+        member_metadata[f'{member.id}'] = ({
+            "member-id": str(member.id),
+            "member-name": str(name),
+            "member-avatar": str(avatar),
+            "member-joindate": str(member.joined_at),
+            "member-exp": 0
+        })
 
-            json.dump(member_metadata, write_member, indent=4)
+        member_level[member.id] = ({
+            "member-exp": 0,
+            "member-level": 0,
+            "member-until-next-lvl": 5
+        })
 
-            write_member.close()
+        make_asset(file=f"{user_path}\\{member.id}.json", mode="w+", data=member_metadata, indent=4)
+        make_asset(file=f"{user_path}\\{member.id}-warnings.json", mode="w+", data=data, indent=4)
+        make_asset(file=f"{user_path}\\{member.id}-exp.json", mode="w+", data=member_level, indent=4)
+
+        cfg_g = f"{config_location}\\{member.guild.id}"
+        g_chl = return_data(file=f"{cfg_g}\\join_channel.json", tabel="setting1", sub_tabel="channel")
+        g_img = return_data(file=f"{cfg_g}\\join_image.json", tabel="setting1", sub_tabel="url")
+        g_txt = return_data(file=f"{cfg_g}\\join_message.json", tabel="setting1", sub_tabel="text")
         
-        with open(f"{full_user_path}\\{member.id}\\{member.id}-exp.json", "w") as write_base_data:
-
-            data = {}
-
-            data[member.id] = ({
-                "member-exp": 0,
-                "member-level": 0,
-                "member-until-next-lvl": 5
-            })
-
-            json.dump(data, write_base_data, indent=4)
         
-        if os.path.isfile(f"{config_location}\\{member.guild.id}\\join_role.json"):
-            with open(f"{config_location}\\{member.guild.id}\\join_role.json", "r") as read_join_role:
+        embed.set_author(name="Notification")
+        embed.set_thumbnail(url=member.avatar_url)
+        embed.add_field(name=f"{member} has joined {member.guild}", value=g_txt)
+        embed.set_image(url=g_img)
+        
+        await self.client.get_channel(int(g_chl)).send(embed=embed)
+        
+        if os.path.isfile(f"{c_path}\\join_role.json"):
 
-                text = read_join_role.read()
-                json_readable = json.loads(text)
-                
-                role = json_readable['join_role']['role']
-                
-                role_to_give = discord.utils.get(self.client.get_guild(member.guild.id).roles, name=role)
-                await member.add_roles(role_to_give)
+            role = return_data(file=f"{c_path}\\join_role.json", tabel="join_role", sub_tabel="role")  
+            role_to_give = discord.utils.get(self.client.get_guild(member.guild.id).roles, name=role)
+
+            await member.add_roles(role_to_give)
     
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
 
-        print(file_path)
+        async def make_role(role_name : str, color):
+            await guild.create_role(name=f"{role_name}", colour=color)
+
         directories = ['Music', 'Queue', 'Temp', 'Members', 'Metadata', 'Resources', 'Config']
+        colors = [GREEN, LIGHT_BLUE, TERQ, YELLOW, RED, DARK_RED, DARK_BLUE, DARK_ORANGE, ORANGE, PURPLE]
+        
         try:
             for x in range(len(directories)):
-                print(directories[x])
-                if os.path.isdir(f"{file_path}\\{directories[x]}\\{guild.id}"):
-                    pass
-                else:
+                if os.path.isdir(f"{file_path}\\{directories[x]}\\{guild.id}") != True:
                     os.mkdir(f"{file_path}\\{directories[x]}\\{guild.id}")
 
 
@@ -246,20 +313,11 @@ class listeners(commands.Cog):
             pass
 
         try:
-            await guild.create_role(name="Level 100", colour=PURPLE)
-            await guild.create_role(name="Level 90", colour=ORANGE)
-            await guild.create_role(name="Level 80", colour=DARK_ORANGE)
-            await guild.create_role(name="Level 70", colour=DARK_BLUE)
-            await guild.create_role(name="Level 60", colour=DARK_RED)
-            await guild.create_role(name="Level 50", colour=RED)
-            await guild.create_role(name="Level 40", colour=YELLOW)
-            await guild.create_role(name="Level 30", colour=TERQ)
-            await guild.create_role(name="Level 20", colour=LIGHT_BLUE)            
-            await guild.create_role(name="Level 10", colour=GREEN)
-
+            for x in range(0, 11):
+                await make_role(role_name=f"Level {x+1}0", color=colors[x])
             
-        except Exception as e:
-            print(e)
+        except Exception:
+            pass
 
         
         New_vol = {}
@@ -303,18 +361,50 @@ class listeners(commands.Cog):
 
         embed.set_author(name=f"I have joined {guild}!")
         embed.add_field(name="I am Vorbis!", value="I can play songs, make playlists, queue songs, and I have a level system! do /help for help, and /usage for command usage!")
-        embed.set_footer(text="Note for Owner / Administrators : Do /setup help")
+        embed.set_footer(text="Programmed by Austin Ares#0001")
         embed.set_thumbnail(url=vorbis_img)
 
         try:
             await self.client.get_guild(guild.id).get_channel(guild.system_channel.id).send(embed=embed)
-            await self.client.get_user(guild.owner_id).send('Note for Owner / Administrators : Do "/setup help" in server')
+            await self.client.get_user(guild.owner_id).send('Note for Owner / Administrators : Do "/server help" in server\nAnd if/when you want the bot to leave the server\nDo /leave')
             mk_metadata()
         except AttributeError:
             print("Server has no system channel, not sending welcome message..")
             mk_metadata()
 
+    @commands.Cog.listener()
+    async def on_guild_update(self, before, after):
+
+        guild = after
+        guild_data = {}
+
+        guild_data[guild.id] = ({
+                    f"{guild.id}-id": str(guild.id),
+                    f"{guild.id}-ico": str(guild.icon),
+                    f"{guild.id}-nm": str(guild.name),
+                    f"{guild.id}-bnr": str(guild.banner),
+                    f"{guild.id}-desc": str(guild.description),
+                    f"{guild.id}-cunrt-boosts": str(guild.premium_subscription_count),
+                    f"{guild.id}-roles": str(guild.roles)
+        })
+
+        make_asset(file=guild_location+f"\\{guild.id}\\{guild.id}.json", mode="w+", data=guild_data, indent=4)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        
+        embed = discord.Embed(color=DARK_BLUE)
+        g_id = member.guild.id
+        
+        l_name = f"{member} left {member.guild}!"
+        l_value = return_data(file=f"{config_location}\\{g_id}\\leave_message.json", tabel="setting1", sub_tabel="text")
+        l_img = return_data(file=f"{config_location}\\{g_id}\\leave_image.json", tabel="setting1", sub_tabel="url")
+        chnl_id = return_data(file=f"{config_location}\\{g_id}\\leave_channel.json", tabel="setting1", sub_tabel="channel")
+        
+        embed.set_author(name="Notification")
+        embed.add_field(name=l_name, value=l_value)
+        embed.set_image(url=l_img)
+        
+        await self.client.get_guild(g_id).get_channel(chnl_id).send(embed=embed)
 def setup(client):
     client.add_cog(listeners(client))
-    
-
