@@ -3,12 +3,13 @@
 
 import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, requests, random, multiprocessing
 
+from ftplib import FTP
 from discord.ext import commands, tasks
 from discord.utils import get
 from discord import Spotify
+from contextlib import closing
 
-
-TOKEN = "TOKEN_IS_NOT_PUBLIC"
+TOKEN = "Nzk4ODY3ODkzOTEwNzY1NTc5.X_7RtA.ftzJLjHlFUDTsEN31JUylZwC2WQ"
 
 """Location Variables"""
 
@@ -94,7 +95,7 @@ def return_data(file : str, tabel : str, sub_tabel : str):
         return RwJSON_Data[tabel][sub_tabel]
 
 CLIENT_PREFIX = return_data(file=config_location+"\\prefix.json", tabel="pfx", sub_tabel="setting1")
-client = commands.AutoShardedBot(shard_count=3, command_prefix=CLIENT_PREFIX, case_insenstive=True, guild_subscriptions=True, intents=intents)
+client = commands.AutoShardedBot(shard_count=1, command_prefix=CLIENT_PREFIX, case_insenstive=True, guild_subscriptions=True, intents=intents)
 
 """Embed Colours"""
 
@@ -128,7 +129,6 @@ async def assist(ctx):
     embed.set_author(name=f"Commands")
     
     embed.add_field(name=f"{CLIENT_PREFIX}assist ● ", value="This Command")
-    embed.add_field(name=f"{CLIENT_PREFIX}purge ● ", value="Clears A Channel")
     embed.add_field(name=f"{CLIENT_PREFIX}pause ● ", value="Pauses Currently Playing Song")
     embed.add_field(name=f"{CLIENT_PREFIX}resume ● ", value="Resumes Currently Playing Song")
     embed.add_field(name=f"{CLIENT_PREFIX}play ● ", value="Plays Selected Song")
@@ -137,7 +137,6 @@ async def assist(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}queueplaylist ● ", value="Queues a playlist")
     embed.add_field(name=f"{CLIENT_PREFIX}playlist ● ", value="Makes a playlist")
     embed.add_field(name=f"{CLIENT_PREFIX}playlists ● ", value="Shows a playlists contents")
-    embed.add_field(name=f"{CLIENT_PREFIX}playq ● ", value="Plays the first song in the queue")
     embed.add_field(name=f"{CLIENT_PREFIX}deleteplaylist ● ", value="Deletes a playlist")
     embed.add_field(name=f"{CLIENT_PREFIX}usage ● ", value="Shows Usage of All Commands")
     embed.add_field(name=f"{CLIENT_PREFIX}queue ● ", value="Queues song(s)")
@@ -146,6 +145,7 @@ async def assist(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}volume ● ", value="Sets volume of Bot")
     embed.add_field(name=f"{CLIENT_PREFIX}song ● ", value="Shows Current song (If one is playing)")
     embed.add_field(name=f"{CLIENT_PREFIX}profile ● ", value="Shows infomation about specified user")
+    embed.add_field(name=f"{CLIENT_PREFIX}this ● ", value="Shows infomation about the server")
     
     
 
@@ -647,25 +647,33 @@ async def queue(ctx, *, url):
 @client.command(aliases=['s'])
 async def skip(ctx):
 
+    guild_queue = f"{queue_location}\\{ctx.guild.id}"
+    first_song = None
+
+    if len(os.listdir(guild_queue)) > 0:
+        first_song = os.listdir(guild_queue)[0].split(".wav")[0]
     embed = discord.Embed(color=LIGHT_BLUE)
     voice = get(client.voice_clients, guild=ctx.guild)
     
 
     embed.set_author(name="Skipping Current Song")
 
-    await ctx.send(embed=embed)
+    
 
     if voice and voice.is_playing():
-        print("Skipping")
+        
+        if first_song is None:
+            embed.set_author(name="No more songs")
+        
+        else:
+            embed.set_author(name=f"Now Playing: {first_song}")
 
         voice.pause()
         voice.stop()
     else:
-        print("Skipping..")
+        embed.set_author(name="No song to be skipped")
 
-        voice.pause()
-        voice.stop()
-        
+    await ctx.send(embed=embed)    
 
 @client.command(aliases=['v'])
 async def volume(ctx, volume_float : float):
@@ -709,7 +717,7 @@ async def songs(ctx):
 
     os.chdir(queue_location+f"\\{ctx.message.guild.id}")
     embed = discord.Embed(color=LIGHT_BLUE)
-    
+    song_list = []
 
     if len(os.listdir()) == 0:
         embed.set_author(name="No Songs")
@@ -717,8 +725,13 @@ async def songs(ctx):
     else:
         for x in range(len(os.listdir())):
             y = os.listdir()[x].split('.wav')
-            embed.set_author(name=y[0])
-            await ctx.send(embed=embed)
+            song_list.append(y)
+        
+        resault = filt_str(string=str(song_list))
+        
+        embed.set_author(name=resault)
+
+        await ctx.send(embed=embed)
     
     
 
@@ -903,121 +916,6 @@ async def playlists(ctx, *, playlist):
         await ctx.send(embed=embed)
 
 @client.command()
-async def playq(ctx):
-
-    clear_temp()
-
-    embed = discord.Embed(color=LIGHT_BLUE)
-    voice = get(client.voice_clients, guild=ctx.guild)
-    channel = ctx.message.author.voice.channel
-    guild = f"\\{ctx.message.guild.id}"
-
-    if voice == None:
-
-        embed.color = RED
-        embed.set_author(name="I'm not connected to a Voice Channel.")
-
-        return await ctx.send(embed=embed)
-
-    if voice.is_playing() or voice.is_paused():
-
-        embed.color = RED
-        embed.set_author(name="I am already playing music! (If no music is playing, it's because it's paused)")
-
-        return await ctx.send(embed=embed)
-
-    os.chdir(queue_location+guild)
-
-    def check_queue():
-
-        os.chdir(queue_location+guild)
-
-        music_file = music_location+guild+"\\music.wav"
-        file_to_move = queue_location+guild+f"\\music.wav"
-
-        if len(os.listdir()) <= 0:
-            print("No more queued songs.")
-            if os.path.isfile(music_file):
-                os.remove(music_file)
-        else:
-            next_song = queue_location+guild+f"\\{os.listdir()[0]}"
-            if os.path.isfile(music_file):
-                os.remove(music_file)
-            
-            try:           
-                next_song_nfext = os.listdir(queue_location+guild)[0].split(".")
-                default_filename = youtubesearchpython.SearchVideos(keyword=next_song_nfext, offset=1, mode="dict", max_results=1)
-                view = str(default_filename.views[0])
-            except IndexError:
-                view = "No Views"
-
-            with open(metadata_location+guild+"\\metadata.json", 'w+') as write_metadata:
-                
-                video_metadata = {}
-
-                video_metadata['metadata'] = ({
-                    "name": next_song_nfext[0],
-                    "views": view,
-                    "author": ctx.author.name
-                })
-
-                json.dump(video_metadata, write_metadata, indent=4)
-            
-            try:
-                os.rename(next_song, "music.wav")
-                shutil.move(file_to_move, music_location)
-            except shutil.Error:
-                if voice.is_playing():
-                    voice.stop()
-                os.remove(music_location+guild+"\\music.wav")
-
-            
-            voice.play(discord.FFmpegPCMAudio(music_file), after=lambda e: check_queue())
-            voice.source = discord.PCMVolumeTransformer(voice.source)
-            voice.source.volume = return_data(config_location+"\\volume.json", "volume", "vol")
-
-    if voice and voice.is_connected():
-        pass
-    else:
-        await channel.connect()
-        
-    if len(os.listdir()) > 0:
-
-        os.chdir(queue_location+guild)
-
-        next_song_nfext = os.listdir()[0].split(".wav")
-        default_filename = youtubesearchpython.SearchVideos(keyword=next_song_nfext, offset=1, mode="dict", max_results=1)
-        view = str(default_filename.views[0])
-    
-        with open(metadata_location+guild+"\\metadata.json", 'w+') as write_metadata:
-                
-            video_metadata = {}
-
-            video_metadata['metadata'] = ({
-                "name": next_song_nfext[0],
-                "views": view,
-                "author": ctx.author.name
-            })
-
-            json.dump(video_metadata, write_metadata, indent=4)
-
-        os.rename(os.listdir()[0], "music.wav")
-
-        if os.path.isfile(music_location+guild+"\\music.wav"):
-            os.remove(music_location+guild+"\\music.wav")
-
-        shutil.move(queue_location+guild+f"\\music.wav", music_location+guild)
-        
-        voice.play(discord.FFmpegPCMAudio(music_location+guild+f"\\music.wav"), after=lambda e: check_queue())
-        voice.source = discord.PCMVolumeTransformer(voice.source)
-        voice.source.volume = return_data(config_location+guild+"\\volume.json", "volume", "vol")
-    
-    else:
-        embed.set_author(name="No songs in queue")
-
-        await ctx.send(embed=embed)
-
-@client.command()
 async def deleteplaylist(ctx, *, playlist):
 
     embed = discord.Embed(color=LIGHT_BLUE)
@@ -1032,28 +930,17 @@ async def deleteplaylist(ctx, *, playlist):
 
         return await ctx.send(embed=embed)
 
+    p_author = return_data(file=playlist_location+f"\\{playlist}\\{playlist}.json", tabel="metadata", sub_tabel="playlist-author")
+    
+    if ctx.author.id == p_author:
 
-    with open(playlist_location+f"\\{playlist}\\{playlist}.json") as delete_playlist:
+        await delete()
 
-        text = delete_playlist.read()
-        json_text = json.loads(text)
+    else:
+        embed.color = RED
+        embed.set_author(name="You're not the owner of this playlist!")
 
-        json_text_form = json_text['info']
-        json_metadata_form = json_text['metadata']
-
-        author = json_metadata_form['playlist-author']
-        
-        delete_playlist.close()
-        
-        if ctx.author.id == author:
-
-            await delete()
-
-        else:
-            embed.color = RED
-            embed.set_author(name="You're not the owner of this playlist!")
-
-            return await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
 @client.command()
 async def usage(ctx):
@@ -1069,7 +956,6 @@ async def usage(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}playlist > ", value=f"{CLIENT_PREFIX}playlist <Playlist Name>. <Privacy Mode (public/private)>. <YouTube Video URLs or Name>")
     embed.add_field(name=f"{CLIENT_PREFIX}playlists > ", value=f"{CLIENT_PREFIX}playlists <Playlist Name>")
     embed.add_field(name=f"{CLIENT_PREFIX}deleteplaylist > ", value=f"{CLIENT_PREFIX}deleteplaylist <Playlist Name>")
-    embed.add_field(name=f"{CLIENT_PREFIX}playq > ", value=f"{CLIENT_PREFIX}playq")
     embed.add_field(name=f"{CLIENT_PREFIX}join > ", value=f"{CLIENT_PREFIX}join")
     embed.add_field(name=f"{CLIENT_PREFIX}disconnect", value=f"{CLIENT_PREFIX}disconnect")
     embed.add_field(name=f"{CLIENT_PREFIX}clear > ", value=f"{CLIENT_PREFIX}clear")
@@ -1081,6 +967,7 @@ async def usage(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}usage > ", value=f"{CLIENT_PREFIX}usage")
     embed.add_field(name=f"{CLIENT_PREFIX}song > ", value=f"{CLIENT_PREFIX}song")
     embed.add_field(name=f"{CLIENT_PREFIX}profile > ", value=f"{CLIENT_PREFIX}profile <@user>")
+    embed.add_field(name=f"{CLIENT_PREFIX}this > ", value=f"{CLIENT_PREFIX}this")
 
     embed.set_footer(icon_url="https://cdn.discordapp.com/attachments/762338721051050024/799379888784015390/P1020461.jpg")
 
@@ -1128,24 +1015,26 @@ async def song(ctx):
 async def prefix(ctx, prefix : str):
 
     embed = discord.Embed(colour=LIGHT_BLUE)
-    with open(config_location+"\\prefix.json", "w") as pfx:
 
-        New_pfx = {}
-        New_pfx['pfx'] = ({
-            "setting1": prefix
-        })
+    New_pfx = {}
+    New_pfx['pfx'] = ({
+        "setting1": prefix
+    })
 
-        json.dump(New_pfx, pfx, indent=4)
+    make_asset(file=config_location+"\\prefix.json", mode="w+", data=new_exp, indention=4)
 
     embed.set_author(name=f"Changed Prefix to > {prefix}")
 
     await ctx.send(embed=embed)
 
 @client.command()
-async def profile(ctx, member : discord.User):
+async def profile(ctx, member : discord.User=None):
+
+    if member is None:
+        member=ctx.author
     try:
 
-        embed = discord.Embed(color=TERQ)
+        embed = discord.Embed(color=member.color)
         user_id = member.id
 
         full_usr_path = f"{user_location}\\{ctx.message.guild.id}"
@@ -1233,71 +1122,306 @@ async def unban(ctx, *, member):
         
 @client.command()
 @commands.has_permissions(administrator=True)
-async def setup(ctx, *, args):
+async def server(ctx, *, args):
 
     embed = discord.Embed(color=MEDIUM_PURPLE)
-    commands = ["help", "join_role", "max_warnings", "blacklist"]
+    commands = ["help", "join_role", "max_warnings", "blacklist", "log_channel", "join_channel", "leave_channel", "join_message", "join_image", "leave_message", "leave_image", "whitelist"]
     arg = args.split(", ")
+    command = args.split(", ")[0]
+    text = f"There is no server command with the name {command}"
+    data = {}
 
-    if arg[0] == commands[0]:
-        embed.set_author(name="Setup Help")
+    path = f"{config_location}\\{ctx.guild.id}\\{command}.json"
 
-        embed.add_field(name="Note > ", value="This may seem complicated, but don't worry! just follow the examples!")
-        embed.add_field(name="join_role", value="Example > /setup join_role, <The role to give when a player joins>")
+    if command == commands[0]:
+        text = "Server Command Help"
 
-    elif arg[0] == commands[1]:
+        embed.add_field(name="Note > ", value="This may seem complicated, but don't worry! just look at the help command")
+        embed.add_field(name="join_role", value=f"{CLIENT_PREFIX}server join_role, <The role to give when a player joins>")
+        embed.add_field(name="max_warnings", value=f'{CLIENT_PREFIX}server max_warnings, <1 / 10> or put it to "None" for unlimited warnings')
+        embed.add_field(name="blacklist", value=f"{CLIENT_PREFIX}server blacklist, <player-ids>")
+        embed.add_field(name="Example for blacklist command", value=f"Example > {CLIENT_PREFIX}server blacklist, 400089431933059072, <other player IDs>")
+        embed.add_field(name="log_channel", value=f"{CLIENT_PREFIX}server log_channel, <channel_id> Sets default log channel, (IE: Blacklist notifications and level up messages)")
+        embed.add_field(name="join_channel", value=f"{CLIENT_PREFIX}server join_channel, <channel_id> Sets join log messages (IE: When a player joins, the message of the joining player will be sent to that channel)")
+        embed.add_field(name="leave_channel", value=f"{CLIENT_PREFIX}server leave_channel, <channel_id> Sets leave log messages (IE: When a player leaves, the message of the leaving player will be sent to the specified channel)")
+        embed.add_field(name="join_message", value=f"{CLIENT_PREFIX}server join_message, <message> The message that will be sent to the specifed join channel")
+        embed.add_field(name="join_image", value=f"{CLIENT_PREFIX}server join_image, <url> The image that will be sent to the specified join channel upon a members joining to the server")
+        embed.add_field(name="leave_image", value=f"{CLIENT_PREFIX}server leave_image, <url> The image that will be sent to the specified leave channel upon a members departure from the server")
+        embed.add_field(name="whitelist", value=f"{CLIENT_PREFIX}server whitelist, on | off Will turn on | off whitelist ")
+        
+
+    elif command == commands[1]:
 
         role = arg[1]
-        print(role)
 
         role_to_give = discord.utils.get(client.get_guild(ctx.message.guild.id).roles, name=role)
-        print(role_to_give)
+
         if role_to_give is None:
-            print("Role does not exist")
-            embed.set_author(name=f'"{role}" is not a role!')
-
-            
+            text = f'"{role}" is not a role!'
         else:
-            with open(f"{config_location}\\{ctx.message.guild.id}\\join_role.json", "w+") as make_join_role:
+            data["join_role"] = ({
+                "role": f"{role_to_give}"
+            })
+        
+            text = f"I have made {role_to_give} the role to give new members!"
 
-                data = {}
+            make_asset(file=path, mode="w+", data=data, indention=4)
 
-                data["join_role"] = ({
-                    "role": f"{role_to_give}"
-                })
+    elif command == commands[2]:
+        
+        new_max_warnings = arg[1]
+        text = f"I have set the Max Warnings to {new_max_warnings}"
+        
+        if new_max_warnings is None:
+            text = f"I have set the Max Warnings to unlimited"
 
-                json.dump(data, make_join_role, indent=4)
+        elif int(new_max_warnings) < 1:
+            text = f"You cannot go under the Max Warnings of 1, please go one or above"
+        else:
+            data["setting1"] = {
+                "warnings": int(new_max_warnings)
+            }
 
-                embed.set_author(name=f"I have made {role_to_give} the role to give new members!")
+            make_asset(file=path, mode="w+", data=data, indention=4)
 
-    elif arg[0] == commands[2]:
+    elif command == commands[3]:
+        
 
-        new_max_warnings = int(arg[1])
+        blacklisted_players = []
+        
+        for x in range(1, len(arg)):
+            blacklisted_players.append(arg[x])
 
-        data = {}
         data["setting1"] = {
-            "warnings": new_max_warnings
+            "blacklist": blacklisted_players
         }
 
-        make_asset(file=config_location+ctx.guild.id+"max_warnings.json", mode="w+", data=data, indent=4)
+        make_asset(file=path, mode="w+", data=data, indention=4)
 
-        embed.set_author(name=f"I have set the Max Warnings to {new_max_warnings}")
-                     
-    elif arg[0] == commands[3]:
-       
-       blacklisted_players = arg[1]
+        text = f"Blacklisted players | {blacklisted_players}"
+    
+    elif command == commands[4]:
         
-       data = {}
-       data["setting1"] = {
-               "blacklist": blacklisted_players
-       
-       make_asset(file=config_location+ctx.guild.id+"blacklist.json", mode="w+", data=data, indentation=4)
-       
-       embed.set_author(name="Blacklisted Players > {blacklisted_players}")
+        channel = client.get_channel(int(arg[1]))
+        if channel is None:
+            text = f"Error: Either I have no permissions to the selected channel, or the channel does not exist"
+
+            embed.set_author(name=text)
+            
+            return await ctx.send(embed=embed)
+
+        data['setting1'] = {
+            "channel": arg[1]
+        }
+
+        make_asset(file=path, mode="w+", data=data, indention=4)
+ 
+        text = f"I have set the log channel to {channel} (Context: This is where global bot messages will go)"
+    
+    elif command == commands[5]:
+    
+        channel_id = int(arg[1])
+        
+        data["setting1"] = ({
+            "channel": channel_id
+        })
+        
+        make_asset(file=path, mode="w+", data=data, indention=4)
+        channel = client.get_channel(channel_id)
+        text = f"I have made {channel} the join log channel"
+    
+    elif command == commands[6]:
+    
+        channel_id = int(arg[1])
+        
+        data["setting1"] = ({
+            "channel": channel_id
+        })
+        
+        make_asset(file=path, mode="w+", data=data, indention=4)
+        channel = client.get_channel(channel_id)
+        text = f"I have made {channel} the leave log channel"
+        
+    elif command == commands[7]:
+        
+        data["setting1"] = ({
+            "text": arg[1]
+        })
+        
+        make_asset(file=path, mode="w+", data=data, indention=4)
+        
+        text = f'Join Message: "{arg[1]}"'
+    
+    elif command == commands[8]:
+    
+        data["setting1"] = ({
+            "url": arg[1]
+        })
+        
+        make_asset(file=path, mode="w+", data=data, indention=4)
+        
+        text = f"Join image has been set!"    
+	
+    elif command == commands[9]:
+	
+        data["setting1"] = ({
+            "text": arg[1]
+        })
+	    
+        make_asset(file=path, mode="w+", data=data, indention=4)
+	    
+        text = f'Leave Message "{arg[1]}"'
+    
+    elif command == commands[10]:
+        
+        data['setting1'] = ({
+            "url": arg[1]
+        })
+            
+        make_asset(file=path, mode="w+", data=data, indention=4)
+        
+        text = f"Leave image has been set!"
+
+    elif command == commands[11]:
+
+        if arg[1] == "on":
+
+            data['setting1'] = ({
+                "whitelist": True
+            })
+            text = f"Whitelist is on"
+            make_asset(file=path, mode="w+", data=data, indention=4)
+
+        elif arg[1] == "off":
+
+            data['setting1'] = ({
+                "whitelist": False
+            })
+            text = f"Whitelist is off"
+            make_asset(file=path, mode="w+", data=data, indention=4)
+
+    embed.set_author(name=text)
+    await ctx.send(embed=embed)
+
+@client.command()
+@commands.has_permissions(ban_members=True)
+async def warn(ctx, player : discord.Member, arg : str=None, amt : int=1):
+
+    path = f"{user_location}\\{ctx.guild.id}\\{player.id}\\{player.id}-warnings.json"
+    config_path = f"{config_location}\\{ctx.guild.id}\\max_warnings.json"
+
+    data = {}
+    embed = discord.Embed(color=RED)
+
+    warnings = 0
+    max_warnings = 0
+
+    if arg is None:
+        pass
+    elif arg == "remove":
+        
+        warnings = return_data(file=path, tabel="setting1", sub_tabel="warnings")
+        
+        if warnings == int(0):
+            
+            embed.set_author(name="Cannot remove anymore warnings, player is at 0 warnings")
+
+            return await ctx.send(embed=embed)
+            
+        new_warn_cnt = warnings-amt
+
+        data = {}
+        data['setting1'] = ({
+            "warnings": new_warn_cnt
+        })
+
+        make_asset(file=path, mode="w+", data=data, indention=4)
+
+        embed.color = MEDIUM_PURPLE
+        embed.set_author(name=f"Removed {amt} warning(s) from {player}")
+
+        return await ctx.send(embed=embed)
+    
+
+
+    try:
+        warnings = int(return_data(file=path, tabel="setting1", sub_tabel="warnings"))
+        max_warnings = return_data(file=config_path, tabel="setting1", sub_tabel="warnings")
+
+
+    except FileNotFoundError:
+        
+        data["setting1"] = ({
+            "warnings": 1
+        })
+        make_asset(file=path, mode="w+", data=data, indention=4)
+
+    new_warning_count = warnings+1
+
+    if max_warnings is None and new_warning_count >= max_warnings:
+        await player.send(f"You've been banned for reaching max warnings in the server")
+        await player.ban(reason="Max Warnings Reached")
+        embed.set_author(name=f"Banned {player.name} for reaching max warnings")
+    else:
+        data["setting1"] = ({
+            "warnings": new_warning_count
+        })
+
+        make_asset(file=path, mode="w+", data=data, indention=4)
+
+        embed.set_author(name=f"Warned {player.name}, Warn Count: {new_warning_count}")
+        
     
     await ctx.send(embed=embed)
+
+@client.command()
+@commands.has_permissions(administrator=True)
+async def leave(ctx):
+    await ctx.send("I am leaving this server, Thank you for giving me a chance in your server! - Vorbis\n\nNote from Austin, programmer of Vorbis: I tried to make it so the bot would delete the level roles that it made when it joined the server\nBut as of me coding this, there is no way to delete roles from the bot\nSorry for making a mess todo with roles, and thank you. - Austin Ares#0001")
+    guild = client.get_guild(ctx.guild.id)
+
+    await guild.leave()
+
+@client.command()
+async def adminhelp(ctx):
+
+    embed = discord.Embed(color=LIGHT_BLUE)
+
+    embed.set_author(name="Administrator Help")
+
+    embed.add_field(name=f"{CLIENT_PREFIX}kick", value="Kicks Selected Player")
+    embed.add_field(name=f"{CLIENT_PREFIX}ban", value="Bans Selected Player")
+    embed.add_field(name=f"{CLIENT_PREFIX}leave", value="Bot will leave the server")
+    embed.add_field(name=f"{CLIENT_PREFIX}warn", value="Warns selected Player")
+    embed.add_field(name=f"{CLIENT_PREFIX}server", value="Server configurations")
+    embed.add_field(name=f"{CLIENT_PREFIX}purge", value="Purges a channel by a selected amount of messages")
+    embed.add_field(name=f"{CLIENT_PREFIX}unban", value="Unbans selected Player")
+
+    await ctx.send(embed=embed)
+
+@client.command()
+async def this(ctx):
     
-                       
+
+    embed = discord.Embed(color=MEDIUM_PURPLE)
+    guild = ctx.guild
+
+    embed.set_author(name=f"{guild}")
+    embed.add_field(name="Server made at: ", value=str(guild.created_at).split(".")[0])
+    embed.add_field(name="Level: ", value=guild.premium_tier, inline=False)
+    embed.add_field(name="ID: ", value=guild.id, inline=False)
+    embed.add_field(name="Member Count: ", value=guild.member_count, inline=False)
+    embed.add_field(name="Region: ", value=guild.region, inline=False)
+    embed.add_field(name="Bitrate Limit: ", value=guild.bitrate_limit, inline=False)
+    embed.add_field(name="Owner: ", value=guild.owner, inline=False)
+    embed.add_field(name="Latency: ", value=client.latency, inline=False)
+
+    embed.set_footer(text=guild.description)
+    embed.set_image(url=guild.icon_url)
+
+    await ctx.send(embed=embed)
+    
+
 for filename in os.listdir(cog_location):
     if filename.endswith('.py'):
         client.load_extension(f'Cogs.{filename[:-3]}')    
