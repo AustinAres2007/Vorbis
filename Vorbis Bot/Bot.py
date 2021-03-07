@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from discord.utils import get
 from discord import Spotify
 
-TOKEN = "Nzk4ODY3ODkzOTEwNzY1NTc5.X_7RtA.-znsW0cBs8jbiHPSz_h3PoTSmt0"
+TOKEN = None
 
 """Location Variables"""
 
