@@ -15,7 +15,7 @@ global file_path, music_location, ydl_opts, res_location, config_location, playl
 
 file_path = os.path.dirname(os.path.realpath(__file__))
 
-vorbis_img = "https://cdn.discordapp.com/attachments/800136030228316170/802961405296902154/icon2.jpg"
+vorbis_img = "Image"
 
 intents = discord.Intents.all()
 intents.members = True
