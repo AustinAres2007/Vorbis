@@ -1,19 +1,17 @@
 """Made by: Austin Ares, Fabian Kuzbiel"""
 
 
-import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, requests, random, multiprocessing
+import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, random
 
-from ftplib import FTP
 from discord.ext import commands, tasks
 from discord.utils import get
 from discord import Spotify
-from contextlib import closing
 
-TOKEN = None
+TOKEN = "Nzk4ODY3ODkzOTEwNzY1NTc5.X_7RtA.-znsW0cBs8jbiHPSz_h3PoTSmt0"
 
 """Location Variables"""
 
-global file_path, music_location, ydl_opts, words, res_location, config_location, playlist_location, metadata_location
+global file_path, music_location, ydl_opts, res_location, config_location, playlist_location, metadata_location
 
 file_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -34,7 +32,7 @@ user_location = file_path+"\\Members"
 cog_location = file_path+"\\Cogs"
 guild_location = file_path+"\\Guilds"
 
-words = ["\\", "/", ":", "<", ">", "*", "?", '"', "|", "."]
+
 
 ydl_opts = {
         'format': 'bestaudio/best',
@@ -53,6 +51,7 @@ def make_asset(file : os.PathLike, mode : str, data : dict, indention : int):
     with open(file, mode) as make_json:
         json.dump(data, make_json, indent=indention)
         make_json.close()
+        
 
 def filt_str(string : str):
 
@@ -63,6 +62,20 @@ def filt_str(string : str):
     filtered_5 = ''.join(filter(lambda char: char != ']', filtered_4))
     filtered_6 = ''.join(filter(lambda char: char != '[', filtered_5))
     filtered_7 = ''.join(filter(lambda char: char != "'", filtered_6))
+    filtered_8 = ''.join(filter(lambda char: char != ",", filtered_7))
+
+    return filtered_8
+
+def filt_str_mod(string : str):
+
+    filtered_1 = ''.join(filter(lambda char: char != '"', string))
+    filtered_2 = ''.join(filter(lambda char: char != ':', filtered_1))
+    filtered_3 = ''.join(filter(lambda char: char != '|', filtered_2))
+    filtered_4 = ''.join(filter(lambda char: char != '.', filtered_3))
+    filtered_5 = ''.join(filter(lambda char: char != ']', filtered_4))
+    filtered_6 = ''.join(filter(lambda char: char != '[', filtered_5))
+    filtered_7 = ''.join(filter(lambda char: char != "'", filtered_6))
+    
 
     return filtered_7
 
@@ -82,17 +95,40 @@ def clear_temp():
 
     except PermissionError:
         pass
+
 clear_temp()
+
 """Functions"""
 
-def return_data(file : str, tabel : str, sub_tabel : str):
+def return_data(file : str, tabel : str=None, sub_tabel : str=None):
+    try:
+        if tabel is None:
+            with open(file) as data:
+                
+                RwText_Data = data.read()
+                RwJSON_Data = json.loads(RwText_Data)
 
-    with open(f"{file}") as data:
+                return RwJSON_Data
 
-        RwText_Data = data.read()
-        RwJSON_Data = json.loads(RwText_Data)
+        elif tabel is not None and sub_tabel is not None:
+            with open(f"{file}") as data:
 
-        return RwJSON_Data[tabel][sub_tabel]
+                RwText_Data = data.read()
+                RwJSON_Data = json.loads(RwText_Data)
+
+                return RwJSON_Data[tabel][sub_tabel]
+        
+        elif tabel is not None and sub_tabel is None:
+            with open(f"{file}") as data:
+
+                RwText_Data = data.read()
+                RwJSON_Data = json.loads(RwText_Data)
+
+                return RwJSON_Data[tabel]
+
+
+    except FileNotFoundError:
+        return None
 
 CLIENT_PREFIX = return_data(file=config_location+"\\prefix.json", tabel="pfx", sub_tabel="setting1")
 client = commands.AutoShardedBot(shard_count=1, command_prefix=CLIENT_PREFIX, case_insenstive=True, guild_subscriptions=True, intents=intents)
@@ -105,6 +141,7 @@ RED = discord.Color.from_rgb(255, 0, 0)
 YELLOW = discord.Color.from_rgb(255, 255, 0)
 LIGHT_BLUE = discord.Color.from_rgb(155, 155, 255)
 MEDIUM_PURPLE = discord.Color.from_rgb(147, 112, 219)
+
 """Bot Code"""
 
 @client.remove_command("help")
@@ -112,7 +149,6 @@ MEDIUM_PURPLE = discord.Color.from_rgb(147, 112, 219)
 async def on_ready():
     print("Online!")
     
-    main_channel = client.get_channel(781983211710316575)
     await client.change_presence(status=discord.Status.online, activity=discord.Game(f'{CLIENT_PREFIX}help'))
     
 
@@ -123,11 +159,11 @@ async def assist(ctx):
     """Help Command"""
 
     embed = discord.Embed(
-        color = TERQ
+        color = MEDIUM_PURPLE
     )
 
-    embed.set_author(name=f"Commands")
     
+    embed.set_author(name=f"≥ Commands")
     embed.add_field(name=f"{CLIENT_PREFIX}assist ● ", value="This Command")
     embed.add_field(name=f"{CLIENT_PREFIX}pause ● ", value="Pauses Currently Playing Song")
     embed.add_field(name=f"{CLIENT_PREFIX}resume ● ", value="Resumes Currently Playing Song")
@@ -146,6 +182,7 @@ async def assist(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}song ● ", value="Shows Current song (If one is playing)")
     embed.add_field(name=f"{CLIENT_PREFIX}profile ● ", value="Shows infomation about specified user")
     embed.add_field(name=f"{CLIENT_PREFIX}this ● ", value="Shows infomation about the server")
+    embed.add_field(name=f"{CLIENT_PREFIX}spotify ● ", value="Shows infomation about what the specified user is playing on Spotify")
     
     
 
@@ -157,8 +194,16 @@ async def assist(ctx):
 
 @client.command(aliases=['pu'])
 async def purge(ctx, amt : int):
+
+    """Purge Command"""
+
     if amt > 249:
-        return await ctx.send("You cannot delete more than 250 messages at a time") 
+
+        """If the "amt" Variable is above 250, it returns this"""
+
+        return await ctx.send("You cannot delete more than 250 messages at a time")
+    
+
     amt = amt+1
 
     await ctx.channel.purge(limit=amt)
@@ -170,20 +215,20 @@ async def purge(ctx, amt : int):
 @client.command(aliases=['pl'])
 async def play(ctx, *, url : str):
 
-    multiple_songs = url.split(',')
-    max_length = 3
-    guild = f"\\{ctx.message.guild.id}"
+    """Variables Needed for the play Command"""
 
+    multiple_songs = url.split(',')
+    guild = f"\\{ctx.message.guild.id}"
     full_path = music_location+guild
     queue_full_path = queue_location+guild
     meta_full_path = metadata_location+guild
     config_full_path = config_location+guild
     server = client.get_guild(ctx.message.guild.id)
-    embed = discord.Embed(
-        colour = LIGHT_BLUE
-    )
+    embed = discord.Embed(colour=LIGHT_BLUE)
 
-    print(multiple_songs)
+    """Code"""
+
+    """Checks if the multiple_songs variable (URL) is equal to a player"""
 
     if multiple_songs[0].startswith("<@!"):
         
@@ -192,7 +237,9 @@ async def play(ctx, *, url : str):
         
         user = server.get_member(int(i))
         print(user.activities)
-        
+
+        """Gets Spotify Status from chosen player (if user is playing a song on spotify)"""
+
         for activity in user.activities:
             if isinstance(activity, Spotify):
                 url = str(activity.title)
@@ -200,14 +247,9 @@ async def play(ctx, *, url : str):
                 embed.color = RED
                 embed.set_author(name="User is not playing any song!")
 
-                return await ctx.send(embed=embed)
-
-            
-                
+                return await ctx.send(embed=embed)        
 
     os.chdir(full_path)
-
-    
 
     voice = get(client.voice_clients, guild=ctx.guild)
     url = youtubesearchpython.SearchVideos(url, offset=1, mode='dict', max_results=1)
@@ -389,9 +431,9 @@ async def queueplaylist(ctx, *, playlist):
             embed.set_author(name=f'Queued the Playlist ● "{playlist}"')
 
             await ctx.send(embed=embed)
-
+            print(songs)
             for x in range(len(songs)):
-
+                
                 if len(os.listdir(full_queue_path)) > 14:
                     embed.color = RED
                     embed.set_author(name="Queue is at song limit! (Limit is 15)")
@@ -760,27 +802,43 @@ async def stop(ctx):
     await client.close()
 
 @client.command()
-async def playlist(ctx, *, args : str):
-
-    arguments = args.split(". ")
+async def playlist(ctx):
+    
+    args = str(ctx.message.content).split("/playlist ")[1]
+    
+    arguments = args.split(", ")
 
     os.chdir(playlist_location)
-
-    global song_len, final_len, song_list
 
     id_letters = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', '_', '-', '!']
     song_list = []
     song_len = []
+    embed = discord.Embed(color=LIGHT_BLUE)
     final_len = 0
 
+    print(len(arguments))
+    if len(arguments) > 2:
+        pass
+    else:
+        embed.color = RED
+        embed.set_author(name='Missing Playlist Arguments (Help > "/playlist <playlist name>, <public | private>, <song1, song2, song3 ect...>")')
 
+        return await ctx.send(embed=embed)
+    
     playlist_name = arguments[0]
     mode = arguments[1]
-    url = arguments[2]
+    url = []
+
+    for z in range(2, len(arguments)):
+        url.append(arguments[z])
 
     playlist_id = random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)
-    mod_url = url.split(", ")
+    
 
+    url = filt_str_mod(str(url))
+
+    mod_url = url.split(", ")
+    
     for y in range(len(os.listdir())):
         with open(playlist_location+"\\"+os.listdir()[y]+"\\"+os.listdir()[y]+".json") as check_id:
 
@@ -808,9 +866,7 @@ async def playlist(ctx, *, args : str):
 
         final_len = final_len+song_len[x]
     
-    final_songs = filt_str(str(song_list))
-
-    print(mod_url)
+    final_songs = filt_str_mod(str(song_list))
     
     conv_url_ = youtubesearchpython.SearchVideos(keyword=random.choice(mod_url), offset=1, mode="dict", max_results=1)
 
@@ -818,7 +874,6 @@ async def playlist(ctx, *, args : str):
 
     print(thumbnail)    
 
-    embed = discord.Embed(color=LIGHT_BLUE)
     playlist_ = playlist_location+f"\\{playlist_name}"
     full_author = ctx.author.name+"#"+ctx.author.discriminator
 
@@ -853,7 +908,7 @@ async def playlist(ctx, *, args : str):
             })
 
             playlist_info['metadata'] = ({
-                "playlist-author": ctx.author.id,
+                "playlist-author": [ctx.author.id],
                 "playlist-cover": thumbnail[1],
                 "playlist-length": final_len,
                 "playlist-id": playlist_id,
@@ -930,18 +985,24 @@ async def deleteplaylist(ctx, *, playlist):
 
         return await ctx.send(embed=embed)
 
+    
     p_author = return_data(file=playlist_location+f"\\{playlist}\\{playlist}.json", tabel="metadata", sub_tabel="playlist-author")
     
-    if ctx.author.id == p_author:
+    if p_author is not None:
+        if ctx.author.id in p_author:
 
-        await delete()
+            await delete()
+
+        else:
+            embed.color = RED
+            embed.set_author(name="You're not the owner of this playlist!")
+
+            return await ctx.send(embed=embed)
 
     else:
-        embed.color = RED
-        embed.set_author(name="You're not the owner of this playlist!")
+        embed.set_author(name=f'No playlist with the name "{playlist}"')
 
-        return await ctx.send(embed=embed)
-
+        await ctx.send(embed=embed)
 @client.command()
 async def usage(ctx):
 
@@ -951,9 +1012,9 @@ async def usage(ctx):
 
     embed.add_field(name=f"{CLIENT_PREFIX}help > ", value=f"{CLIENT_PREFIX}help")
     embed.add_field(name=f"{CLIENT_PREFIX}purge > ", value=f"{CLIENT_PREFIX}purge <Amount of Messages>")
-    embed.add_field(name=f"{CLIENT_PREFIX}play > ", value=f"{CLIENT_PREFIX}play <YouTube Video URL or Name>")
     embed.add_field(name=f"{CLIENT_PREFIX}queue > ", value=f"{CLIENT_PREFIX}queue <YouTube Video URLs or Name>")
-    embed.add_field(name=f"{CLIENT_PREFIX}playlist > ", value=f"{CLIENT_PREFIX}playlist <Playlist Name>. <Privacy Mode (public/private)>. <YouTube Video URLs or Name>")
+    embed.add_field(name=f"{CLIENT_PREFIX}play > ", value=f"{CLIENT_PREFIX}play <YouTube Video URL or Name>")
+    embed.add_field(name=f"{CLIENT_PREFIX}playlist > ", value=f"{CLIENT_PREFIX}playlist <Playlist Name>, <Privacy Mode (public/private)>, <YouTube Video URLs or Name, Seperate with comma> Example: /playlist My Playlist, public, Song 1, Song 2, Song, 3")
     embed.add_field(name=f"{CLIENT_PREFIX}playlists > ", value=f"{CLIENT_PREFIX}playlists <Playlist Name>")
     embed.add_field(name=f"{CLIENT_PREFIX}deleteplaylist > ", value=f"{CLIENT_PREFIX}deleteplaylist <Playlist Name>")
     embed.add_field(name=f"{CLIENT_PREFIX}join > ", value=f"{CLIENT_PREFIX}join")
@@ -968,6 +1029,7 @@ async def usage(ctx):
     embed.add_field(name=f"{CLIENT_PREFIX}song > ", value=f"{CLIENT_PREFIX}song")
     embed.add_field(name=f"{CLIENT_PREFIX}profile > ", value=f"{CLIENT_PREFIX}profile <@user>")
     embed.add_field(name=f"{CLIENT_PREFIX}this > ", value=f"{CLIENT_PREFIX}this")
+    embed.add_field(name=f"{CLIENT_PREFIX}spotify > ", value=f"{CLIENT_PREFIX}spotify <@user>")
 
     embed.set_footer(icon_url="https://cdn.discordapp.com/attachments/762338721051050024/799379888784015390/P1020461.jpg")
 
@@ -1011,23 +1073,6 @@ async def song(ctx):
         await ctx.send(embed=embed)
 
 @client.command()
-@commands.is_owner()
-async def prefix(ctx, prefix : str):
-
-    embed = discord.Embed(colour=LIGHT_BLUE)
-
-    New_pfx = {}
-    New_pfx['pfx'] = ({
-        "setting1": prefix
-    })
-
-    make_asset(file=config_location+"\\prefix.json", mode="w+", data=new_exp, indention=4)
-
-    embed.set_author(name=f"Changed Prefix to > {prefix}")
-
-    await ctx.send(embed=embed)
-
-@client.command()
 async def profile(ctx, member : discord.User=None):
 
     if member is None:
@@ -1057,13 +1102,13 @@ async def profile(ctx, member : discord.User=None):
         
             user_info = json_formatted[str(user_id)]
 
-            embed.set_author(name=f'Here is "{user_info["member-name"]}" Profile')
-            embed.add_field(name=f"User Name  |   {user_info['member-name']}", value="|", inline=False)
-            embed.add_field(name=f"User ID   |   {user_info['member-id']}", value="|", inline=False)
-            embed.add_field(name=f"User Join Date   |   {user_info['member-joindate'].split('.')[0]}", value="|", inline=False)
-            embed.add_field(name=f"Current User Level   |   {current_level}", value="|", inline=False)
-            embed.add_field(name=f"Current User Experience   |   {current_exp}", value="|", inline=False)
-            embed.add_field(name=f"Until Next Level Up   |   {int(until_next_levelup-current_exp)}", value="|", inline=False)
+            embed.set_author(name=f'Here is "{user_info["member-name"]}" Profile', icon_url=vorbis_img)
+            embed.add_field(name=f"User Name  Ø   {user_info['member-name']}", value="\u200b", inline=False)
+            embed.add_field(name=f"User ID   Ø   {user_info['member-id']}", value="\u200b", inline=False)
+            embed.add_field(name=f"User Join Date   Ø   {user_info['member-joindate'].split('.')[0]}", value="\u200b", inline=False)
+            embed.add_field(name=f"Current User Level   Ø   {current_level}", value="\u200b", inline=False)
+            embed.add_field(name=f"Current User Experience   Ø   {current_exp}", value="\u200b", inline=False)
+            embed.add_field(name=f"Until Next Level Up   Ø   {int(until_next_levelup-current_exp)}", value="\u200b", inline=False)
             embed.set_image(url=user_info['member-avatar'])
 
             await ctx.send(embed=embed)
@@ -1094,7 +1139,7 @@ async def kick(ctx, member : discord.Member, *, reason):
 
     name = f"{member.name}#{member.discriminator}"
     embed = discord.Embed(color=MEDIUM_PURPLE)
-
+    await member.send(f"You've been kicked from {ctx.guild} Reason: {reason}")
     await member.kick(reason=reason)
 
     embed.set_author(name=f"Kicked {name}")
@@ -1122,12 +1167,12 @@ async def unban(ctx, *, member):
         
 @client.command()
 @commands.has_permissions(administrator=True)
-async def server(ctx, *, args):
+async def server(ctx, command, *, args=None):
 
     embed = discord.Embed(color=MEDIUM_PURPLE)
     commands = ["help", "join_role", "max_warnings", "blacklist", "log_channel", "join_channel", "leave_channel", "join_message", "join_image", "leave_message", "leave_image", "whitelist"]
-    arg = args.split(", ")
-    command = args.split(", ")[0]
+    
+
     text = f"There is no server command with the name {command}"
     data = {}
 
@@ -1152,7 +1197,7 @@ async def server(ctx, *, args):
 
     elif command == commands[1]:
 
-        role = arg[1]
+        role = args
 
         role_to_give = discord.utils.get(client.get_guild(ctx.message.guild.id).roles, name=role)
 
@@ -1169,7 +1214,7 @@ async def server(ctx, *, args):
 
     elif command == commands[2]:
         
-        new_max_warnings = arg[1]
+        new_max_warnings = args
         text = f"I have set the Max Warnings to {new_max_warnings}"
         
         if new_max_warnings is None:
@@ -1183,26 +1228,10 @@ async def server(ctx, *, args):
             }
 
             make_asset(file=path, mode="w+", data=data, indention=4)
-
-    elif command == commands[3]:
-        
-
-        blacklisted_players = []
-        
-        for x in range(1, len(arg)):
-            blacklisted_players.append(arg[x])
-
-        data["setting1"] = {
-            "blacklist": blacklisted_players
-        }
-
-        make_asset(file=path, mode="w+", data=data, indention=4)
-
-        text = f"Blacklisted players | {blacklisted_players}"
     
     elif command == commands[4]:
         
-        channel = client.get_channel(int(arg[1]))
+        channel = client.get_channel(int(args))
         if channel is None:
             text = f"Error: Either I have no permissions to the selected channel, or the channel does not exist"
 
@@ -1211,7 +1240,7 @@ async def server(ctx, *, args):
             return await ctx.send(embed=embed)
 
         data['setting1'] = {
-            "channel": arg[1]
+            "channel": args
         }
 
         make_asset(file=path, mode="w+", data=data, indention=4)
@@ -1220,7 +1249,7 @@ async def server(ctx, *, args):
     
     elif command == commands[5]:
     
-        channel_id = int(arg[1])
+        channel_id = int(args)
         
         data["setting1"] = ({
             "channel": channel_id
@@ -1232,7 +1261,7 @@ async def server(ctx, *, args):
     
     elif command == commands[6]:
     
-        channel_id = int(arg[1])
+        channel_id = int(args)
         
         data["setting1"] = ({
             "channel": channel_id
@@ -1245,17 +1274,17 @@ async def server(ctx, *, args):
     elif command == commands[7]:
         
         data["setting1"] = ({
-            "text": arg[1]
+            "text": args
         })
         
         make_asset(file=path, mode="w+", data=data, indention=4)
         
-        text = f'Join Message: "{arg[1]}"'
+        text = f'Join Message: "{args}"'
     
     elif command == commands[8]:
     
         data["setting1"] = ({
-            "url": arg[1]
+            "url": args
         })
         
         make_asset(file=path, mode="w+", data=data, indention=4)
@@ -1265,17 +1294,17 @@ async def server(ctx, *, args):
     elif command == commands[9]:
 	
         data["setting1"] = ({
-            "text": arg[1]
+            "text": args
         })
 	    
         make_asset(file=path, mode="w+", data=data, indention=4)
 	    
-        text = f'Leave Message "{arg[1]}"'
+        text = f'Leave Message "{args}"'
     
     elif command == commands[10]:
         
         data['setting1'] = ({
-            "url": arg[1]
+            "url": args
         })
             
         make_asset(file=path, mode="w+", data=data, indention=4)
@@ -1284,7 +1313,7 @@ async def server(ctx, *, args):
 
     elif command == commands[11]:
 
-        if arg[1] == "on":
+        if args == "on":
 
             data['setting1'] = ({
                 "whitelist": True
@@ -1292,7 +1321,7 @@ async def server(ctx, *, args):
             text = f"Whitelist is on"
             make_asset(file=path, mode="w+", data=data, indention=4)
 
-        elif arg[1] == "off":
+        elif args == "off":
 
             data['setting1'] = ({
                 "whitelist": False
@@ -1305,7 +1334,7 @@ async def server(ctx, *, args):
 
 @client.command()
 @commands.has_permissions(ban_members=True)
-async def warn(ctx, player : discord.Member, arg : str=None, amt : int=1):
+async def warn(ctx, player : discord.Member, *, reason : str=None):
 
     path = f"{user_location}\\{ctx.guild.id}\\{player.id}\\{player.id}-warnings.json"
     config_path = f"{config_location}\\{ctx.guild.id}\\max_warnings.json"
@@ -1315,56 +1344,47 @@ async def warn(ctx, player : discord.Member, arg : str=None, amt : int=1):
 
     warnings = 0
     max_warnings = 0
+    splited_reason = reason.split(" ")
 
-    if arg is None:
-        pass
-    elif arg == "remove":
+    mode = splited_reason[0]
+    w_reason = []
+    f_reason = None
+    print(len(reason))
+    for x in range(1, len(splited_reason)):
+        w_reason.append(splited_reason[x])
+        f_reason = filt_str(str(w_reason))
+
+    if mode == "remove":
+        return await ctx.send(f_reason)
         
-        warnings = return_data(file=path, tabel="setting1", sub_tabel="warnings")
-        
-        if warnings == int(0):
-            
-            embed.set_author(name="Cannot remove anymore warnings, player is at 0 warnings")
-
-            return await ctx.send(embed=embed)
-            
-        new_warn_cnt = warnings-amt
-
-        data = {}
-        data['setting1'] = ({
-            "warnings": new_warn_cnt
-        })
-
-        make_asset(file=path, mode="w+", data=data, indention=4)
-
-        embed.color = MEDIUM_PURPLE
-        embed.set_author(name=f"Removed {amt} warning(s) from {player}")
-
-        return await ctx.send(embed=embed)
-    
-
-
     try:
         warnings = int(return_data(file=path, tabel="setting1", sub_tabel="warnings"))
         max_warnings = return_data(file=config_path, tabel="setting1", sub_tabel="warnings")
-
-
+        new_warning_count = warnings+1
+        print(warnings)
+        print(max_warnings)
     except FileNotFoundError:
         
+        print(warnings)
+        print(max_warnings)
+
         data["setting1"] = ({
             "warnings": 1
         })
         make_asset(file=path, mode="w+", data=data, indention=4)
 
-    new_warning_count = warnings+1
-
-    if max_warnings is None and new_warning_count >= max_warnings:
+    
+        
+    if max_warnings is type(int) and new_warning_count >= max_warnings:
         await player.send(f"You've been banned for reaching max warnings in the server")
         await player.ban(reason="Max Warnings Reached")
         embed.set_author(name=f"Banned {player.name} for reaching max warnings")
     else:
         data["setting1"] = ({
-            "warnings": new_warning_count
+            "warning_entry": [{
+                "count": new_warning_count,
+                "reason": reason
+            }]
         })
 
         make_asset(file=path, mode="w+", data=data, indention=4)
@@ -1416,11 +1436,149 @@ async def this(ctx):
     embed.add_field(name="Owner: ", value=guild.owner, inline=False)
     embed.add_field(name="Latency: ", value=client.latency, inline=False)
 
-    embed.set_footer(text=guild.description)
+    embed.set_footer(text=guild.description) 
     embed.set_image(url=guild.icon_url)
 
     await ctx.send(embed=embed)
+
+@client.command()
+async def spotify(ctx, member : discord.Member=None):
+
+    member_id = None
     
+
+    if member is None:
+        member_id = ctx.author.id
+    else:
+        member_id = member.id
+    
+
+    guild = client.get_guild(ctx.guild.id)
+    user = guild.get_member(member_id)
+    embed = discord.Embed(color=user.color)
+    
+
+    title = None
+    artist = None
+    album_url = None
+    duration = None
+
+    
+
+    for activity in user.activities:
+        if isinstance(activity, Spotify):
+            title = str(activity.title)
+            artist = str(activity.artist)
+            album_url = str(activity.album_cover_url)
+            duration = str(activity.duration).split(".")[0]
+
+    if title is None:
+        embed.color = RED
+        embed.set_author(name=f"{user} is not playing any song")
+
+        return await ctx.send(embed=embed)
+    embed.set_author(name=f"{user} Spotify", icon_url=user.avatar_url)            
+
+    embed.add_field(name=f"{user} is playing   Ø   {title}", value="\u200b")
+    embed.add_field(name=f"By   Ø   {artist}", value="\u200b", inline=False)
+    embed.add_field(name=f"Song Duration   Ø   {duration}", value="\u200b", inline=False)
+
+    embed.set_image(url=album_url)
+    
+    
+    await ctx.send(embed=embed)
+
+@client.command()
+@commands.is_owner()
+async def broadcast(ctx, g_id, *, message):
+
+    guild = client.get_guild(int(g_id))
+    channel = guild.get_channel(guild.system_channel.id)
+
+    await channel.send(f"Message Recived from {ctx.guild}\n\n{ctx.author}: {message}")
+
+@client.command()
+async def ptrust(ctx, user : discord.Member=None, *, playlist_name=None):
+
+    embed = discord.Embed(color=LIGHT_BLUE)
+
+    if user is None and playlist_name is None:
+        embed.set_author(name="Both Values are empty.")
+
+        return await ctx.send(embed=embed)
+    elif user is None:
+        embed.set_author(name="No user was selected.")
+
+        return await ctx.send(embed=embed)
+    elif playlist_name is None:
+
+        embed.set_author(name="No playlist selected.")
+
+        return await ctx.send(embed=embed)
+    else:    
+
+        full_path = f"{playlist_location}\\{playlist_name}\\{playlist_name}.json"
+
+        playlist_data = return_data(full_path)
+
+        if playlist_data["metadata"]["playlist-author"][0] == int(ctx.author.id): 
+            playlist_data["metadata"]["playlist-author"].append(int(user.id))
+
+            make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
+            embed.set_author(name=f"{user} is now trusted")
+        else:
+            embed.set_author(name=f"You're not allowed to trust other people (Even if you're trusted)")
+        await ctx.send(embed=embed)
+
+@client.command()
+async def prtrust(ctx, user : discord.Member=None, *, playlist_name=None):
+    
+    embed = discord.Embed(color=LIGHT_BLUE)
+
+    if user is None and playlist_name is None:
+        embed.set_author(name="Both Values are empty.")
+
+        return await ctx.send(embed=embed)
+    elif user is None:
+        embed.set_author(name="No user was selected.")
+
+        return await ctx.send(embed=embed)
+    elif playlist_name is None:
+
+        embed.set_author(name="No playlist selected.")
+
+        return await ctx.send(embed=embed)
+    else:
+        
+        full_path = f"{playlist_location}\\{playlist_name}\\{playlist_name}.json"
+
+        playlist_data = return_data(full_path)
+
+        if os.path.isdir(f"{playlist_location}\\{playlist_name}") != True:
+            embed.set_author(name=f'No playlist with the name "{playlist_name}"')
+            await ctx.send(embed=embed)
+        else:
+            try:
+                if playlist_data["metadata"]["playlist-author"][0] == int(ctx.author.id) and playlist_data["metadata"]["playlist-author"][0] == int(user.id):
+                    embed.color = RED
+                    embed.set_author(name="You cannot remove yourself from your own playlist.")
+    
+                elif playlist_data["metadata"]["playlist-author"][0] == int(user.id):
+                    embed.color = RED
+                    embed.set_author(name="You cannot remove owners' trust permissions.")
+
+                else:
+                    playlist_data["metadata"]["playlist-author"].remove(int(user.id))
+                    make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
+
+                    embed.set_author(name=f"{user} is no longer trusted.")
+
+                await ctx.send(embed=embed)
+
+            except ValueError:
+                embed.set_author(name=f"{user} is already not trusted.")
+
+                await ctx.send(embed=embed)
 
 for filename in os.listdir(cog_location):
     if filename.endswith('.py'):
