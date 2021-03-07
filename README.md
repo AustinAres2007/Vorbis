@@ -4,7 +4,7 @@ Discord Bot Vorbis
 - Uses JSON to store data (I could have made it use lists, sets, and dicts, but I wanted to try it this way lol)
 - Still in Alpha Development
 
-# - What the bot can actually do
+# - What the bot can actually do?
 
 - Play music
 - A leveling system (That can be edited via roles)
