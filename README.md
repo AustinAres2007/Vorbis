@@ -11,11 +11,12 @@ Discord Bot Vorbis
 - User Profiles
 - A music queueing system
 - A Music playlist system (You can make public or private)
+- Spotify Stuff
 - General Administration Commands
 
 # - What it uses
 
-- Uses FFMPEG and YouTubeDL to play music and youtube-search-python to search for songs (https://github.com/alexmercerind/youtube-search-python Please go check this dude out, he made this bot 100% possible..)
+- Uses FFMPEG and YouTubeDL to play music and youtube-search-python to search for songs (https://github.com/alexmercerind/youtube-search-python Please go check this dude out, he made this bot 100% possible)
 
 # - Basic Story
 
