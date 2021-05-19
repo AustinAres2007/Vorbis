@@ -13,6 +13,7 @@ Discord Bot Vorbis
 - A Music playlist system (You can make public or private)
 - Spotify Stuff
 - General Administration Commands
+- Basic Economy
 
 # - What it uses
 
@@ -26,8 +27,8 @@ Discord Bot Vorbis
 
 # - Credit
 
-- Fabian Kuzbiel, Austin Ares
+- Fabian Kuzbiel (Programmer, Moral Support), Austin Ares (Programmer, Project Manager), Elina (Moral Support lol) 
 
 # - Note
 
-- This is made for friends, and not supposed to be taken seriously.
+- This is made for friends, and not supposed to be taken seriously. Like.. At all.
