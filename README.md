@@ -21,8 +21,9 @@ Discord Bot Vorbis
 
 # - Basic Story
 
-- Was hanging out with a friend one night, we were bored and decided to make this as a fun and lightweight python project, but I got heavily into making this, and-
-  he dropped out of development about 3 days after we started building it, but still, credit goes to Fabian Kuzbiel for making think of this idea,-
+- Was hanging out with a friend one night, we were bored and decided to make this as a fun and lightweight python project, but I got heavily invested, and
+  he dropped out of development about 3 days after we started building it, but still, credit goes to Fabian Kuzbiel for making think of this idea.
+  
   fabby .#1122
 
 # - Credit
