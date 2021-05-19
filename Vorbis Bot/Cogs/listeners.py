@@ -1,13 +1,16 @@
 import discord, json, os, datetime, random
 
 from discord.ext import tasks, commands
+from discord.utils import get
 
-file_path = "C:\\Users\\Default\\Documents\\Python\\Scripts\\Vorbis"
+file_path = "Working Path"
+
 user_location = file_path+"\\Members"
 guild_location = file_path+"\\Guilds"
 config_location = file_path+"\\Config"
 global_profile = file_path+"\\GlobalProfiles"
-vorbis_img = "https://cdn.discordapp.com/attachments/800136030228316170/802961405296902154/icon2.jpg"
+metadata_location = file_path+"\\Metadata"
+vorbis_img = "empty_variable"
 
 WHITE = discord.Color.from_rgb(255, 255, 255)
 TERQ = discord.Color.from_rgb(49,171,159)
@@ -57,7 +60,7 @@ def return_data(file : str, tabel : str=None, sub_tabel : str=None):
                 return RwJSON_Data[tabel]
 
 
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError, KeyError):
         return None
 
 def check_dirfile(path : os.PathLike, Type : str):
@@ -93,8 +96,7 @@ class listeners(commands.Cog):
             if return_data(f"{config_location}\\{message.guild.id}\\config.json", "config", "log_channel") is not None:
                 pass
             else:
-                print("No log channel")
-                return
+                channel = self.client.get_channel(message.channel.id)
 
             try:
                 guild = f"\\{message.guild.id}"
@@ -103,18 +105,13 @@ class listeners(commands.Cog):
 
             except AttributeError:
                 pass
+
             if message.author.id == 798867893910765579:
                 return
-
-            if check_dirfile(path=channel_path, Type="file"):
-                channel_id = return_data(file=channel_path, tabel="config", sub_tabel="log_channel")
-
-                channel = self.client.get_channel(int(channel_id))
 
             usr_exp = 0
             until_nxt_lvl = None
             usr_lvl = 0
-
 
             embed = discord.Embed(color=message.author.colour)
             member_id = message.author.id
@@ -169,16 +166,24 @@ class listeners(commands.Cog):
 
                     with open(full_user_path+f"\\{message.author.id}\\{message.author.id}-exp.json", "w") as write_data:
 
+                        userBankPath = f"{user_location}\\{message.guild.id}\\{member_id}\\{member_id}-bank.json"
+                        userBankData = return_data(userBankPath)
+
                         data = {}
                         numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
                         level_numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
                         if message.guild.premium_tier == 0:
                             new_exp = usr_exp+1
+                            userBankData[f"{member_id}"]["balance"] = userBankData[f"{member_id}"]["balance"]+5
                         elif message.guild.premium_tier == 1:
                             new_exp = usr_exp+2
+                            userBankData[f"{member_id}"]["balance"] = userBankData[f"{member_id}"]["balance"]+10
                         elif message.guild.premium_tier == 2:
                             new_exp = usr_exp+3
+                            userBankData[f"{member_id}"]["balance"] = userBankData[f"{member_id}"]["balance"]+15
+
+                        make_asset(userBankPath, "w", userBankData, 4)
 
                         if new_exp >= until_nxt_lvl:
 
@@ -193,6 +198,10 @@ class listeners(commands.Cog):
 
                             if usr_lvl in numbers:
                                 role = discord.utils.get(self.client.get_guild(message.guild.id).roles, name=f"Level {usr_lvl}")
+                                if usr_lvl == 10:
+                                    pass
+                                else:
+                                    roleToRemove = discord.utils.get(self.client.get_guild(message.guild.id).roles, name=f"Level {usr_lvl-10}")
                             else:
                                 for x in range(len(numbers)):
                                     if usr_lvl < numbers[x] and usr_lvl > numbers[x-1]:
@@ -222,8 +231,13 @@ class listeners(commands.Cog):
                                 await self.client.get_guild(message.guild.id).get_channel(message.channel.id).send(embed=embed)
 
                                 print("User did not hit a milestone")
+
                             if role is not None:
                                 await message.author.add_roles(role)
+                                if usr_lvl == 10:
+                                    pass
+                                else:
+                                    await message.author.remove_roles(roleToRemove)
                             else:
                                 pass
 
@@ -234,10 +248,14 @@ class listeners(commands.Cog):
 
                         })
 
-
-                        serverLinks = return_data(f"{guild_location}\\{message.guild.id}\\{message.guild.id}-LINKS.json")["guild-links"]
-
                         userID = str(message.author.id)
+
+                        globalData = return_data(global_profile+f"\\{member_id}\\{member_id}.json")
+                        serverLinks = return_data(f"{guild_location}\\{message.guild.id}\\{message.guild.id}-LINKS.json")["guild-links"]
+                        userLinks = return_data(f"{full_user_path}\\{userID}\\{userID}-links.json")
+                        userMetadata = return_data(metadata_location+f"\\{message.guild.id}\\payload-data.json")
+                        userMetadata['data']['message-id'] = message.id
+
                         if userID in serverLinks:
 
                             if serverLinks["links-enabled"]:
@@ -247,18 +265,36 @@ class listeners(commands.Cog):
 
                                 make_asset(userData, "w", data, 4)
 
-
-                        userLinks = return_data(f"{full_user_path}\\{userID}\\{userID}-links.json")
-                        userLinks = userLinks["member-link"]
-
-                        if userLinks["link-enabled"]:
+                        if userLinks["member-link"]["link-enabled"]:
                             try:
-                                link = int(userLinks["links"][0])
-                                guildPath = f"{user_location}\\{link}\\{userID}\\{userID}-exp.json"
+                                link = int(userLinks["member-link"]["links"][0])
+                                guildName = self.client.get_guild(link)
 
-                                make_asset(guildPath, "w", data, 4)
+                                if guildName is not None:
+                                    guildPath = f"{user_location}\\{link}\\{userID}\\{userID}-exp.json"
+
+                                    make_asset(guildPath, "w", data, 4)
+
+                                else:
+                                    if globalData["global"]["has-link"] is True:
+
+                                        userLinks["member-link"]["links"].clear()
+                                        globalData["global"]["has-link"] = False
+
+                                        linkUser = self.client.get_user(member_id)
+                                        await linkUser.send("The server you made a link on has since been deleted or I was kicked, I have severed your link.\nAnd you have kept all Experience data you gathered from both servers, sorry for the inconvinience. (Note: Of course, I can only make a link to a server if I'm in it)")
+
+                                        make_asset(f"{full_user_path}\\{userID}\\{userID}-links.json", "w", userLinks, 4)
+                                        make_asset(global_profile+f"\\{member_id}\\{member_id}.json", "w", globalData, 4)
+
+                                    else:
+                                        pass
+
+
                             except IndexError:
                                 pass
+
+                        make_asset(metadata_location+f"\\{message.guild.id}\\payload-data.json", "w", userMetadata, 4)
                         json.dump(data, write_data, indent=4)
 
                     make_plr()
@@ -273,6 +309,7 @@ class listeners(commands.Cog):
 
                 data = {}
                 member_links = {}
+                bank = {}
 
                 data[member_id] = ({
                     "member-exp": 0,
@@ -284,9 +321,16 @@ class listeners(commands.Cog):
                     "links": []
                 })
 
+                bank[f"{member_id}"] = ({
+                    "balance": 50,
+                    "inventory": {}
+                })
+
 
                 make_asset(file=f"{full_user_path}\\{member_id}\\{member_id}-exp.json", mode="w+", data=data, indent=4)
                 make_asset(file=f"{full_user_path}\\{member_id}\\{member_id}-links.json", mode="w+", data=member_links, indent=4)
+                make_asset(file=f"{full_user_path}\\{member_id}\\{member_id}-bank.json", mode="w+", data=bank, indent=4)
+
 
         except AttributeError:
             pass
@@ -302,6 +346,10 @@ class listeners(commands.Cog):
         full_user_path = user_location+f"\\{guild}"
         user_path = f"{full_user_path}\\{member.id}"
 
+        g_img = None
+        g_txt = None
+        g_chl = None
+
         try:
             if return_data(file=f"{c_path}\\whitelist.json", tabel="setting1", sub_tabel="whitelist") == bool(True):
 
@@ -311,30 +359,6 @@ class listeners(commands.Cog):
                 await member.send(embed=embed)
                 return await member.kick(reason="Whitelist is enabled")
 
-
-        except FileNotFoundError:
-            pass
-
-        try:
-            blacklist = list(return_data(file=f"{c_path}\\blacklist.json", tabel="setting1", sub_tabel="blacklist"))
-
-
-            if str(member.id) in blacklist:
-
-                await member.send("You're blacklisted from this server.")
-                await member.kick(reason="Player was blacklisted from server")
-
-                if check_dirfile(path=f"{c_path}\\log_channel.json", Type="file") is True:
-                    channel_id = int(return_data(file=f"{c_path}\\log_channel.json", tabel="setting1", sub_tabel="channel"))
-                    channel = self.client.get_channel(channel_id)
-
-                    if channel is None:
-                        return
-                    else:
-                        embed.set_author(name=f"Kicked {member.name}, Reason: Player was blacklisted")
-                        return await channel.send(embed=embed)
-                else:
-                    return
 
         except FileNotFoundError:
             pass
@@ -351,6 +375,7 @@ class listeners(commands.Cog):
         member_level = {}
         member_metadata = {}
         member_links = {}
+        member_bank = {}
 
         data['setting1'] = ({
             "warnings": 0
@@ -379,10 +404,16 @@ class listeners(commands.Cog):
             "member-until-next-lvl": 5
         })
 
+        member_bank[f"{member.id}"] = ({
+            "balance": 50,
+            "inventory": {}
+        })
+
         make_asset(file=f"{user_path}\\{member.id}.json", mode="w+", data=member_metadata, indent=4)
         make_asset(file=f"{user_path}\\{member.id}-warnings.json", mode="w+", data=data, indent=4)
         make_asset(file=f"{user_path}\\{member.id}-exp.json", mode="w+", data=member_level, indent=4)
-        make_asset(file=f"{user_path}\\{member.id}-links.json", mode="w+", data=member_level, indent=4)
+        make_asset(file=f"{user_path}\\{member.id}-links.json", mode="w+", data=member_links, indent=4)
+        make_asset(file=f"{user_path}\\{member.id}-bank.json", mode="w+", data=member_bank, indent=4)
 
         cfg_g = f"{config_location}\\{member.guild.id}"
 
@@ -391,10 +422,24 @@ class listeners(commands.Cog):
         else:
             return False
 
-        g_chl = return_data(file=f"{cfg_g}\\join_channel.json", tabel="setting1", sub_tabel="channel")
-        g_img = return_data(file=f"{cfg_g}\\join_image.json", tabel="setting1", sub_tabel="url")
-        g_txt = return_data(file=f"{cfg_g}\\join_message.json", tabel="setting1", sub_tabel="text")
+        try:
+            g_chl = return_data(file=f"{cfg_g}\\config.json", tabel="config", sub_tabel="join_channel")
+        except KeyError:
+            return
+        try:
+            g_img = return_data(file=f"{cfg_g}\\config.json", tabel="config", sub_tabel="join_image")
 
+            if g_img is None:
+                g_img = vorbis_img
+        except KeyError:
+            g_img = vorbis_img
+        try:
+            g_txt = return_data(file=f"{cfg_g}\\config.json", tabel="config", sub_tabel="join_message")
+
+            if g_txt is None:
+                g_txt = f"{member} has joined the guild, Please give them a warm welcome."
+        except KeyError:
+            g_txt = f"{member} has joined the guild, Please give them a warm welcome."
 
         embed.set_author(name="Notification")
         embed.set_thumbnail(url=member.avatar_url)
@@ -498,8 +543,6 @@ class listeners(commands.Cog):
                 num.append(".")
                 color.append(role_colour)
 
-                #print(f"\n\nMade Role>\nNAME>{name_final}\nCOLOR>{role_colour}\nNAME_L>{name_l}\nNAME_NUMBER>{name_number}\nNAME_ID>{name_id}\nNUM>{num}")
-
             else:
                 if len(num) > 9:
                     for y in range(0, 10):
@@ -509,17 +552,17 @@ class listeners(commands.Cog):
                     break
                 else:
                     pass
-                    #print(f"\n\nMade Role>\nNAME>{name_final}\nCOLOR>{role_colour}\nNAME_L>{name_l}\nNAME_NUMBER>{name_number}\nNAME_ID>{name_id}\nNUM>{num}")
+
 
 
         if str(guild) == "tt":
-            print(guild)
             return False
-        else:
-            print(f"Not Debug Server>{guild}")
 
         config = {}
         links = {}
+        bank = {}
+        payload = {}
+
         config['config'] = ({
             "vol": 1.0,
             "warnings": 3
@@ -529,8 +572,28 @@ class listeners(commands.Cog):
             "links-enabled": True
         })
 
-        make_asset(file=f"{config_location}\\{guild.id}\\config.json", mode="w+", data=config, indent=4)
+        bank[f"{guild.id}"] = ({
+            "guild-balance": 0,
+            "items": [],
+            "guild-items": {}
+        })
 
+        metadata['metadata'] = ({
+            "name": title,
+            "views": views,
+            "author": ctx.author.name,
+            "queued-playlist": None
+        })
+        payload["data"] = ({
+            "author-id": None,
+            "message-id": None,
+            "og-message-id": None
+        })
+
+
+        make_asset(file=f"{config_location}\\{guild.id}\\config.json", mode="w+", data=config, indent=4)
+        make_asset(file=f"{metadata_location}\\{guild.id}\\metadata.json", mode="w+", data=metadata, indent=4)
+        make_asset(file=f"{metadata_location}\\{guild.id}\\payload-data.json", mode="w+", data=payload, indent=4)
 
 
         os.chdir(guild_location)
@@ -558,14 +621,16 @@ class listeners(commands.Cog):
 
                 json.dump(server_matadata, edit_svr_metadata, indent=4)
                 make_asset(file=f"{guild_location}\\{guild.id}\\{guild.id}-LINKS.json", mode="w+", data=links, indent=4)
+                make_asset(file=f"{guild_location}\\{guild.id}\\{guild.id}-INVENTORY.json", mode="w+", data=bank, indent=4)
 
                 print("Made Assets")
 
         embed = discord.Embed(color=self.client.get_user(guild.owner_id).color)
+        fabian, austin = self.client.get_user(533285613021954049), self.client.get_user(400089431933059072)
 
         embed.set_author(name=f"I have joined {guild}!")
         embed.add_field(name="I am Vorbis!", value="I can play songs, make playlists, queue songs, and I have a level system! do /help for help, and /usage for command usage!")
-        embed.set_footer(text="Programmed by Austin Ares#0001 👩‍💻")
+        embed.set_footer(text=f"Programmed by {fabian} and {austin} (On discord) 👩‍💻")
         embed.set_thumbnail(url=vorbis_img)
 
         mk_metadata()
@@ -602,25 +667,79 @@ class listeners(commands.Cog):
         embed = discord.Embed(color=DARK_BLUE)
         g_id = member.guild.id
 
-        location_msg = f"{config_location}\\{g_id}\\leave_message.json"
-        location_img = f"{config_location}\\{g_id}\\leave_image.json"
-        location_chnl = f"{config_location}\\{g_id}\\leave_channel.json"
+        location_msg = f"{config_location}\\{g_id}\\config.json"
+        location_img = f"{config_location}\\{g_id}\\config.json"
+        location_chnl = f"{config_location}\\{g_id}\\config.json"
 
+        l_value = None
+        l_img = None
+        chnl_id = None
         if check_dirfile(path=location_msg, Type="file") and check_dirfile(path=location_img, Type="file") and check_dirfile(path=location_chnl, Type="file"):
             pass
         else:
             return False
 
         l_name = f"{member} left {member.guild}!"
-        l_value = return_data(file=location_msg, tabel="setting1", sub_tabel="text")
-        l_img = return_data(file=location_img, tabel="setting1", sub_tabel="url")
-        chnl_id = return_data(file=location_chnl, tabel="setting1", sub_tabel="channel")
+        try:
+            l_value = return_data(file=location_msg, tabel="config", sub_tabel="leave_message")
+
+            if l_value is None:
+                l_value = f"{member} has left the guild."
+
+        except KeyError:
+            l_value = f"{member} has left the guild."
+        try:
+            l_img = return_data(file=location_img, tabel="config", sub_tabel="leave_image")
+
+            if l_img is None:
+                l_img = vorbis_img
+        except KeyError:
+            l_img = vorbis_img
+        try:
+            chnl_id = return_data(file=location_chnl, tabel="config", sub_tabel="leave_channel")
+        except KeyError:
+            return
 
         embed.set_author(name="Notification")
         embed.add_field(name=l_name, value=l_value)
         embed.set_image(url=l_img)
 
         await self.client.get_guild(g_id).get_channel(chnl_id).send(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        ctx, member = self.client.get_channel(payload.channel_id), payload.member
+        messageChannel = self.client.get_channel(payload.channel_id)
+        message = await messageChannel.fetch_message(payload.message_id)
+        try:
+            channel, vorbis = member.voice.channel, self.client.get_user(self.client.user.id)
+            guild = self.client.get_guild(payload.guild_id)
+            voice = get(self.client.voice_clients, guild=guild)
+
+            metadata = return_data(metadata_location+f"\\{payload.guild_id}\\payload-data.json")
+
+            if member.id != 798867893910765579:
+                if member in channel.members and vorbis in channel.members:
+                    if payload.message_id == metadata["data"]["message-id"] or payload.message_id == metadata["data"]["og-message-id"] and member.id == metadata["data"]["author-id"]:
+                        if payload.emoji.name == "\U0001f3b5":
+                            voice.pause()
+                            await message.remove_reaction("\U0001f3b5", member)
+                        elif payload.emoji.name == "\U0001f3a7":
+                            voice.resume()
+                            await message.remove_reaction("\U0001f3a7", member)
+
+                        elif payload.emoji.name == "\U0001f3b6":
+                            voice.pause()
+                            voice.stop()
+                            await message.remove_reaction("\U0001f3b6", member)
+                    else:
+                        return
+                else:
+                    return
+            else:
+                return
+        except AttributeError:
+            return
 
 def setup(client):
     client.add_cog(listeners(client))
