@@ -1,4 +1,4 @@
-"""Made by: Austin Ares, Fabian Kuzbiel"""
+"""Made by: Austin Ares, Fabian Kuzbiel, Elina"""
 
 
 import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, random, logging, asyncio, lyricsgenius
@@ -8,24 +8,25 @@ from discord.utils import get
 from discord import Spotify
 
 TOKEN = None
-
-CLIENT_ID = "Spotify ID"
-CLIENT_SECRET = "Another secret"
-GENIUS_ID = "Some ID"
-GENIUS_SECRET = "Did you read the Variable name? It's a secret."
-GENIUS_ACCESS_TOKEN = "Nunya"
+CLIENT_ID = None
+CLIENT_SECRET = None
+GENIUS_ID = None
+GENIUS_SECRET = None
+GENIUS_ACCESS_TOKEN = None
 
 """Location Variables"""
 
 global file_path, music_location, ydl_opts, res_location, config_location, playlist_location, metadata_location
 
 file_path = os.path.dirname(os.path.realpath(__file__))
-
 vorbis_img = "https://cdn.discordapp.com/attachments/800136030228316170/802961405296902154/icon2.jpg"
+vorbis_img2 = "https://cdn.discordapp.com/attachments/800136030228316170/833278727327842314/image0.jpg"
 
 intents = discord.Intents.all()
 intents.members = True
 intents.guilds = True
+intents.reactions = True
+intents.messages = True
 
 music_location = file_path+"\\Music"
 queue_location = file_path+"\\Queue"
@@ -121,15 +122,19 @@ def filt_str_url(string : str):
 
     return filtered_5
 
-def return_data(file : str, tabel : str=None, sub_tabel : str=None):
+def return_data(file : str, tabel : str=None, sub_tabel : str=None, ty : str=None):
     try:
         if tabel is None:
             with open(file) as data:
 
                 RwText_Data = data.read()
-                RwJSON_Data = json.loads(RwText_Data)
 
-                return RwJSON_Data
+
+                if ty == "text":
+                    return RwText_Data
+                else:
+                    RwJSON_Data = json.loads(RwText_Data)
+                    return RwJSON_Data
 
         elif tabel is not None and sub_tabel is not None:
             with open(f"{file}") as data:
@@ -186,9 +191,18 @@ async def sendEmbed(errorEmbed : discord.Embed, context : any=None, msg : str=No
 
     await context.send(embed=errorEmbed)
 
+def getUserArgs(ctx, args):
+
+
+    if args.channel.id == ctx.channel.id and args.guild.id == ctx.guild.id and args.author.id == ctx.author.id:
+        return args.content
+    else:
+        return None
+
+
 async def recomendPlaylistTimer():
 
-    print("Activated Recomended Playlist Timer")
+
 
     highestValue = 0
     listOfPlaylists = {}
@@ -197,6 +211,10 @@ async def recomendPlaylistTimer():
     recommendedPlaylist['src'] = {}
 
     while True:
+
+        curnt_time = str(datetime.datetime.now())
+        print(f"Playlist timer update at: {curnt_time.split('.')[0]}")
+
         nameList.clear()
 
         for x in range(len(os.listdir(playlist_location))):
@@ -234,6 +252,7 @@ async def recomendPlaylistTimer():
 
                 recommendedPlaylist["src"]["playlist-name"] = highestValueName
                 recommendedPlaylist["src"]["playlist-id"] = highestValueID
+                recommendedPlaylist["src"]["time"] = curnt_time.split('.')[0]
 
                 make_asset(f"{file_path}\\recommendedPlaylist.json", "w", recommendedPlaylist, 4)
 
@@ -287,7 +306,7 @@ def findPlaylistTags(tags):
         if playlistData["info"]["privicy"] == "public":
             if tags in playlistData["metadata"]["tags"]:
                 try:
-                    if playlistName != blacklistedPlaylists and int(playlistData["metadata"]["queue-count"]) > int(maxInt[0]) and int(playlistData["metadata"]["queue-count"]) > int(maxInt[1]):
+                    if int(playlistData["metadata"]["queue-count"]) > int(maxInt[0]) and int(playlistData["metadata"]["queue-count"]) > int(maxInt[1]):
                         acceptedPlaylists.append(playlistName)
                         maxInt.pop()
                         maxInt.append(int(playlistData["metadata"]["queue-count"]))
@@ -305,6 +324,31 @@ def image(img):
         return True
     else:
         return False
+
+def getSongMetaData(ctx):
+
+    voice = get(client.voice_clients, guild=ctx.guild)
+
+    if voice is not None and voice.is_connected() and voice.is_playing():
+        metadata = return_data(metadata_location+f"\\{ctx.guild.id}\\metadata.json")
+        return metadata
+    else:
+        return "None"
+
+def replaceSpaces(string : str=None):
+
+    if string is not None:
+        stringSplit = string.split(" ")
+        e = []
+
+        for x in range(len(stringSplit)):
+            e.append(stringSplit[x])
+
+            string = "-".join(e)
+
+        return string
+    else:
+        return None
 
 class getPlaylistInfo():
 
@@ -366,9 +410,9 @@ def check_owner(playlist : str, owner_id : int):
             raise OSError("Playlist Not Existing")
     except:
         return None
+
 CLIENT_PREFIX = "/"
-#return_data(file=config_location+"\\prefix.json", tabel="pfx", sub_tabel="setting1")
-client = commands.AutoShardedBot(shard_count=1, command_prefix="/", case_insenstive=True, guild_subscriptions=True, intents=intents)
+client = commands.AutoShardedBot(shard_count=2, command_prefix=CLIENT_PREFIX, case_insenstive=True, guild_subscriptions=True, intents=intents)
 
 """Embed Colours"""
 
@@ -385,8 +429,8 @@ GOLD = discord.Color.from_rgb(207,181,59)
 @client.remove_command("help")
 @client.event
 async def on_ready():
-    print("Vorbis is Online")
-
+    curnt_time = str(datetime.datetime.now())
+    print(f"Version 1.1\nVorbis is Online\n\nStartup/Refresh at: {curnt_time.split('.')[0]}")
     await client.change_presence(status=discord.Status.online, activity=discord.Game(f'{CLIENT_PREFIX}help'))
     asyncio.create_task(recomendPlaylistTimer())
 
@@ -412,6 +456,14 @@ async def assist(ctx):
             embed.add_field(name=f"{CLIENT_PREFIX}link", value=f'Will link your profile to another guild, (NOTE: you can only link your server to one guild at a time, and Vorbis has to be in the guild. And as of now, this feature is not ready)')
             embed.add_field(name=f":musical_note: More Music Commands :musical_note:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}lyrics", value=f"Will return specified song lyrics by a specified artist, (AKA: Will return song lyrics, does this via Genius™ API, if you do not pass Artist name or a song, will return A command Failure.)")
+            embed.add_field(name=f":moneybag: Economy Commands :moneybag:", value="\u200b", inline=False)
+            embed.add_field(name=f"{CLIENT_PREFIX}buy", value=f"Will buy an item, as of now, you can only buy rolls, but I plan to expand this. The item has to be in the shop, and you have to be able to afford it, (Note: To look at your own balance, do {CLIENT_PREFIX}profile")
+            embed.add_field(name=f"{CLIENT_PREFIX}shop", value=f"Will show what items are available in the shop, items in the shops are added by administrators, to buy something, you need money, you can earn money by talking in chat. (Note: This economy system is not accurate to in-real-life scenarios, and is in dollars)")
+            embed.add_field(name=f":pick: More General Commands :pick:", value="\u200b", inline=False)
+            embed.add_field(name=f"{CLIENT_PREFIX}ah", value=f"Administration Commands, if you are a normal player, do not do this command (Note: Nothing will happen)")
+            embed.add_field(name=f"{CLIENT_PREFIX}credit", value=f"Credits, Shows updated credits of who made Vorbis")
+
+
 
             return await ctx.send(embed=embed)
     except ValueError:
@@ -497,6 +549,7 @@ async def play(ctx, *, url : str=None):
     embed = discord.Embed(colour=LIGHT_BLUE)
     voice = get(client.voice_clients, guild=ctx.guild)
     client_volume = return_data(config_location+f"\\{ctx.guild.id}\\config.json", "config", "vol")
+    message = ctx.message
 
     if client_volume is None:
         return await ctx.send(f"You have not set a default volume, you can do this with {CLIENT_PREFIX}volume <Integer Value> like 1 or 2")
@@ -518,7 +571,10 @@ async def play(ctx, *, url : str=None):
         try:
 
             channel = ctx.message.author.voice.channel
-            return await channel.connect()
+            try:
+                return await channel.connect()
+            except discord.errors.ClientException:
+                pass
 
         except AttributeError:
             embed.color = RED
@@ -565,6 +621,7 @@ async def play(ctx, *, url : str=None):
     with open(meta_full_path+f"\\metadata.json", "w+") as write_data:
 
         metadata = {}
+        payload = return_data(metadata_location+f"\\{ctx.guild.id}\\payload-data.json")
 
         metadata['metadata'] = ({
             "name": title,
@@ -572,7 +629,12 @@ async def play(ctx, *, url : str=None):
             "author": ctx.author.name
         })
 
+        payload["data"]["author-id"] = ctx.author.id
+        payload["data"]["message-id"] = ctx.message.id
+        payload["data"]["og-message-id"] = ctx.message.id
+
         json.dump(metadata, write_data, indent=4)
+        make_asset(metadata_location+f"\\{ctx.guild.id}\\payload-data.json", "w", payload, 4)
 
     if int(len(length.split(':'))) >= 2 and int(len(length.split(':'))) >= 3:
 
@@ -587,7 +649,8 @@ async def play(ctx, *, url : str=None):
     embed.add_field(name=f"Link Ø ",value=video, inline=False)
     embed.add_field(name=f"Length Ø ",value=length, inline=False)
     embed.add_field(name=f"Channel Ø ",value=channel, inline=False)
-    embed.set_footer(text=f"Client Volume Ø {int(client_volume)}")
+    embed.add_field(name=f"Client Volume Ø ", value=client_volume)
+    embed.set_footer(text=f"You can click the :musical_note: button to pause, you may also use the :headphones: button to resume, and use the :notes: button to skip the track.")
 
     await ctx.send(embed=embed)
 
@@ -622,9 +685,9 @@ async def play(ctx, *, url : str=None):
                 video_metadata = {}
 
                 video_metadata['metadata'] = ({
-                    "name": next_song_nfext[0],
+                    "name": name,
                     "views": view,
-                    "author": ctx.author.name
+                    "author": ctx.author.name,
                 })
 
                 json.dump(video_metadata, write_metadata, indent=4)
@@ -660,17 +723,24 @@ async def play(ctx, *, url : str=None):
         pass
 
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video])
+        try:
+            ydl.download([video])
 
-        os.rename(os.listdir()[0], "music.wav")
+            os.rename(os.listdir()[0], "music.wav")
 
-        if voice and voice.is_playing() or voice.is_paused():
+            #if voice and voice.is_playing() or voice.is_paused():
             voice.stop()
 
-        voice.play(discord.FFmpegPCMAudio(full_path+"\\music.wav"), after=lambda e: check_queue())
-        voice.source = discord.PCMVolumeTransformer(voice.source)
-        voice.source.volume = client_volume
+            voice.play(discord.FFmpegPCMAudio(full_path+"\\music.wav"), after=lambda e: check_queue())
+            voice.source = discord.PCMVolumeTransformer(voice.source)
+            voice.source.volume = client_volume
 
+            await message.add_reaction("\U0001f3b5")
+            await message.add_reaction("\U0001f3a7")
+            await message.add_reaction("\U0001f3b6")
+
+        except youtube_dl.utils.DownloadError:
+            await ctx.send("Please try again")
 @client.command(aliases=['qpl'])
 async def queueplaylist(ctx, *, playlist=None):
 
@@ -695,6 +765,7 @@ async def queueplaylist(ctx, *, playlist=None):
     if os.path.isdir(playlist_location+f"\\{playlist}"):
         pass
     else:
+        print("Error")
         embed.color = RED
         embed.set_author(name=f'"{playlist}" is not a playlist!')
 
@@ -722,6 +793,7 @@ async def queueplaylist(ctx, *, playlist=None):
             for x in range(len(songs)):
 
                 if len(os.listdir(full_queue_path)) > 14:
+                    print("Error, 1")
                     embed.color = RED
                     embed.set_author(name="Queue is at song limit! (Limit is 15)")
 
@@ -738,6 +810,7 @@ async def queueplaylist(ctx, *, playlist=None):
 
                 if int(len(len_split)) >= 3 and int(len_split[0]) >= 1:
 
+                    print("Error, 2")
                     embed.color = RED
                     embed.set_author(name=f"Song / Video is too long! Limit is 1 hour! (Song is {int(len_split[0])})")
 
@@ -761,13 +834,15 @@ async def queueplaylist(ctx, *, playlist=None):
 
                     except shutil.Error:
                         pass
-        if privacy_setting == "public" or ctx.author.id == author:
+        if privacy_setting == "public" or ctx.author.id in author:
             await queue_playlist()
 
             playlist_path = f"{playlist_location}\\{playlist}\\{playlist}.json"
             playlist_data = return_data(playlist_path)
             playlist_data["metadata"]["queue-count"] = playCount
             globalData = return_data(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json")
+            metadata = return_data(metadata_location+f"\\{ctx.guild.id}\\payload-data.json")
+
 
             try:
 
@@ -791,7 +866,11 @@ async def queueplaylist(ctx, *, playlist=None):
                     "play-count": 0
                 }
             finally:
+
+                metadata["data"]["queued-playlist"] = playlist
+
                 make_asset(playlist_path, "w", playlist_data, 4)
+                make_asset(metadata_location+f"\\{ctx.guild.id}\\payload-data.json", "w", metadata, 4)
                 make_asset(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json", "w", globalData, 4)
 
         elif privacy_setting == "server":
@@ -828,10 +907,13 @@ async def join(ctx):
         await voice.disconnect()
         await voice.move_to(channel)
     else:
-        embed.set_author(name=f"Connected to {channel}")
-        await ctx.send(embed=embed)
-        voice = await channel.connect()
+        try:
+            embed.set_author(name=f"Connected to {channel}")
+            await ctx.send(embed=embed)
+            voice = await channel.connect()
 
+        except discord.errors.ClientException:
+            await ctx.send("Already connected to a voice channel")
 @client.command(aliases=['p'])
 async def pause(ctx):
 
@@ -946,7 +1028,7 @@ async def queue(ctx, *, url=None):
 
         """Checks if the song is below 1 Hour"""
 
-        if int(len(lenght.split(':')[0])) >= 1 and int(len(lenght.split(':'))) >= 3:
+        if int(len(lenght.split(':')[0])) >= 1 and int(len(lenght.split(':'))) >= 3 and ctx.author.id != 400089431933059072:
 
 
             embed.color = RED
@@ -1062,8 +1144,8 @@ async def skip(ctx):
         else:
             embed.set_author(name=f"Now Playing: {first_song}")
 
-        voice.pause()
-        voice.stop()
+            voice.pause()
+            voice.stop()
     else:
         embed.set_author(name="No song to be skipped")
 
@@ -1081,12 +1163,10 @@ async def volume(ctx, volume_float : float=None):
 
     else:
 
-        New_vol = {}
-        New_vol['volume'] = ({
-            "vol": volume_float
-        })
+        config_data = return_data(f"{config_location}\\{ctx.guild.id}\\config.json")
+        config_data["config"]["vol"] = volume_float
 
-        make_asset(file=full_config_path+"\\volume.json", mode="w", data=New_vol, indention=4)
+        make_asset(file=full_config_path+"\\config.json", mode="w", data=config_data, indention=4)
 
         embed.set_author(name=f"Changed volume to > {volume_float}")
 
@@ -1331,7 +1411,9 @@ async def playlist(ctx):
                 "queue-count": 0,
                 "server-playlist": [int(ctx.guild.id)],
                 "tags": [],
-                "playlist-creation": str(datetime.datetime.now())
+                "playlist-creation": str(datetime.datetime.now()),
+                "playlist-comments": {},
+                "playlist-comment-count": 0
 
             })
 
@@ -1351,10 +1433,14 @@ async def playlist(ctx):
 @client.command()
 async def playlists(ctx, *, playlist=None):
 
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     embed = discord.Embed(color=LIGHT_BLUE)
+
     playlistOld = None
     playlistID = None
     name = None
+    sendEmbed = None
+
     if playlist is None:
         playlistData = return_data(f"{file_path}\\recommendedPlaylist.json", "src")
 
@@ -1366,7 +1452,6 @@ async def playlists(ctx, *, playlist=None):
 
     playlist_ = playlist_location+f"\\{playlist}\\"
 
-    print(playlist_+f"{playlist}.json")
     if os.path.isfile(playlist_+f"{playlist}.json"):
 
         with open(playlist_+f"{playlist}.json") as read_playlist:
@@ -1377,9 +1462,9 @@ async def playlists(ctx, *, playlist=None):
             playlist_metadata = json_data['metadata']
 
             if playlist_json["privicy"] == "public" or ctx.author.id in playlist_metadata["playlist-author"]:
-
+                print("CHECK 2")
                 if playlistOld is None:
-                    print(playlistID)
+
                     if str(playlistID) != str(playlist_metadata["playlist-id"]):
 
                         embed.set_author(name="Most popular playlist has been deleted.")
@@ -1389,7 +1474,15 @@ async def playlists(ctx, *, playlist=None):
                         embed.set_author(name=f'Most popular playlist')
 
                         embed.add_field(name=f"Playlist Name Ø", value=playlist, inline=False)
-                        embed.set_footer(text="Note: Most popular playlist changes once an hour, if it's still the same after 1 hour, it's just because it's still the most popular lol")
+                        embed.add_field(name=f"Comment Count Ø", value=playlist_metadata["playlist-comment-count"], inline=False)
+                        time = playlistData['time']
+
+                        year = time.split("-")[0]
+                        month = time.split("-")[1]
+                        day = time.split("-")[2].split(" ")[0]
+                        tod = time.split("-")[2].split(" ")[1]
+
+                        embed.set_footer(text=f"Last Updated at {months[int(month)-1]} {day}, {year} at {tod}")
 
                         embed.color = GOLD
 
@@ -1400,17 +1493,32 @@ async def playlists(ctx, *, playlist=None):
                     embed.add_field(name="Playlist Description > ", value=playlist_metadata["playlist-description"], inline=False)
                 except KeyError:
                     pass
+
+                playlist_tags = filt_str_mod(str(playlist_metadata["tags"]))
                 embed.set_image(url=playlist_metadata['playlist-cover'])
+
+                if len(playlist_metadata["tags"]) == 0:
+                    playlist_tags = "No tags"
 
                 embed.add_field(name=f"Author of Playlist > ", value=playlist_metadata['playlist-author-name'], inline=False)
                 embed.add_field(name="Songs > ", value=playlist_json['playlist'], inline=False)
                 embed.add_field(name="Length of Playlist (Minutes) > ", value=playlist_metadata['playlist-length'], inline=False)
                 embed.add_field(name="Date of playlist creation > ", value=playlist_metadata['playlist-creation'], inline=False)
                 embed.add_field(name="Privacy Setting > ", value=playlist_json["privicy"], inline=False)
+                embed.add_field(name="Tags > ", value=playlist_tags, inline=False)
 
             elif playlist_json["privicy"] == "server":
 
-                if int(ctx.guild.id) in playlist_metadata['server-playlist']['playlist-guild']:
+                if int(ctx.guild.id) in playlist_metadata['server-playlist']:
+                    playlist_tags = filt_str_mod(str(playlist_metadata["tags"]))
+
+                    try:
+                        embed.add_field(name="Playlist Description > ", value=playlist_metadata["playlist-description"], inline=False)
+                    except KeyError:
+                        pass
+
+                    if len(playlist_metadata["tags"]) == 0:
+                        playlist_tags = "No tags"
 
                     embed.set_author(name=f'Here is the playlist "{playlist}"')
                     embed.set_image(url=playlist_metadata['playlist-cover'])
@@ -1420,6 +1528,7 @@ async def playlists(ctx, *, playlist=None):
                     embed.add_field(name="Length of Playlist (Minutes) > ", value=playlist_metadata['playlist-length'], inline=False)
                     embed.add_field(name="Date of playlist creation > ", value=playlist_metadata['playlist-creation'], inline=False)
                     embed.add_field(name="Privacy Setting > ", value=playlist_json["privicy"], inline=False)
+                    embed.add_field(name="Tags > ", value=playlist_tags, inline=False)
 
 
 
@@ -1432,10 +1541,12 @@ async def playlists(ctx, *, playlist=None):
                 embed.set_author(name="This Playlist is Private.")
 
             try:
-                embed.color = discord.Color.from_rgb(int(playlist_metadata["playlist-color"][0]), int(playlist_metadata["playlist-color"][1]), int(playlist_metadata["playlist-color"][2]))
-                await ctx.send(embed=embed)
+                if "playlist-color" in playlist_metadata.keys():
+                    embed.color = discord.Color.from_rgb(int(playlist_metadata["playlist-color"][0]), int(playlist_metadata["playlist-color"][1]), int(playlist_metadata["playlist-color"][2]))
+                else:
+                    pass
             except KeyError:
-                await ctx.send(embed=embed)
+                pass
 
     else:
         if playlistOld is None:
@@ -1444,7 +1555,7 @@ async def playlists(ctx, *, playlist=None):
             embed.color = RED
             name = "The playlist you're looking for does not exist!"
 
-        await sendEmbed(embed, ctx, name)
+    await ctx.send(embed=embed)
 
 @client.command()
 async def deleteplaylist(ctx, *, playlist=None):
@@ -1609,7 +1720,7 @@ async def profile(ctx, member : discord.User=None):
 
         with open(f"{full_usr_path}\\{user_id}\\{user_id}.json") as read_user:
 
-            globalData = return_data(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json")
+            globalData = return_data(global_profile+f"\\{member.id}\\{member.id}.json")
 
             def calculatePopularPlaylist():
                 lengthOfPlaylists = len(globalData["global"]["playlist-list"])
@@ -1631,22 +1742,21 @@ async def profile(ctx, member : discord.User=None):
                         del globalData["global"]["playlist-list"][playlist]
                         globalData["global"]["listened-playlist-list"].remove(playlist)
 
-                        make_asset(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json", "w", globalData, 4)
+                        make_asset(global_profile+f"\\{member.id}\\{member.id}.json", "w", globalData, 4)
                         continue
 
                 return mostPopularPlaylist
 
-
-
-
             text = read_user.read()
             json_formatted = json.loads(text)
-
+            favoritePlaylist = None
             user_info = json_formatted[str(user_id)]
-            mostPopularPlaylist = calculatePopularPlaylist()
+            userBalance = return_data(f"{user_location}\\{ctx.guild.id}\\{ctx.author.id}\\{ctx.author.id}-bank.json")
 
-            if mostPopularPlaylist[1] is None:
-                mostPopularPlaylist[1] = "Does not have one"
+            if calculatePopularPlaylist()[1] is None:
+                favoritePlaylist = "Does not have one"
+            else:
+                favoritePlaylist = calculatePopularPlaylist()[1]
 
             embed.set_author(name=f'Here is "{user_info["member-name"]}" Profile', icon_url=vorbis_img)
             embed.add_field(name=f"User Name  Ø   {user_info['member-name']}", value="\u200b", inline=False)
@@ -1655,12 +1765,27 @@ async def profile(ctx, member : discord.User=None):
             embed.add_field(name=f"Current User Level   Ø   {current_level}", value="\u200b", inline=False)
             embed.add_field(name=f"Current User Experience   Ø   {current_exp+1}", value="\u200b", inline=False)
             embed.add_field(name=f"Until Next Level Up   Ø   {int(until_next_levelup-current_exp-1)}", value="\u200b", inline=False)
-            embed.add_field(name=f"Playlist Listened to the Most   Ø   {mostPopularPlaylist[1]}", value="\u200b", inline=False)
+            embed.add_field(name=f"Favorite Playlist   Ø   {favoritePlaylist}", value="\u200b", inline=False)
+
+            if member.id == ctx.author.id:
+                embed.add_field(name=f"User Balance   Ø   {userBalance[str(ctx.author.id)]['balance']}", value="\u200b", inline=False)
+
             embed.set_image(url=user_info['member-avatar'])
 
+            if globalData["global"]["has-link"] is True:
+                if int(globalData["global"]["link-id"]) == ctx.guild.id:
+                    guildID = int(globalData["global"]["link-made-id"])
+                else:
+                    guildID = int(globalData["global"]["link-id"])
+
+                guild = client.get_guild(guildID)
+                embed.add_field(name=f"Has a Link with   Ø   {guild} (guild ID: {guildID})", value="\u200b", inline=False)
+            else:
+                embed.add_field(name=f"Does not have a link", value="\u200b", inline=False)
             await ctx.send(embed=embed)
 
     except (FileNotFoundError, commands.UserNotFound):
+
         embed.color = RED
         embed.set_author(name=f"No Member the name {member}")
 
@@ -1685,9 +1810,7 @@ async def ban(ctx, member : discord.Member=None , *, reason=None):
 
 @client.command()
 @commands.has_permissions(kick_members=True)
-async def kick(ctx, member : discord.Member=None, *, reason=""):
-
-
+async def kick(ctx, member : discord.Member=None, *, reason : str="Unspecified"):
 
     embed = discord.Embed(color=MEDIUM_PURPLE)
 
@@ -1728,12 +1851,10 @@ async def unban(ctx, *, member):
 async def server(ctx, command=None, *, args=None):
 
     embed = discord.Embed(color=MEDIUM_PURPLE)
-    commands = ["help", "join_role", "max_warnings", "blacklist", "log_channel", "join_channel", "leave_channel", "join_message", "join_image", "leave_message", "leave_image", "whitelist"]
+    commands = ["help", "join_role", "max_warnings", "blacklist", "log_channel", "join_channel", "leave_channel", "join_message", "join_image", "leave_message", "leave_image", "whitelist", "shop_image", "shop_name"]
 
     if command is None:
         command = "help"
-
-    text = f"There is no server command with the name {command}"
 
     data = return_data(f"{config_location}\\{ctx.guild.id}\\config.json")
 
@@ -1806,8 +1927,9 @@ async def server(ctx, command=None, *, args=None):
         data["config"][f"{command}"] = args
 
     elif command == commands[10]:
-
+        print("cmd rec")
         if image(args):
+            print("NEW_IMG")
             text = "I've set the new leave image"
             embed.set_image(url=args)
 
@@ -1819,6 +1941,23 @@ async def server(ctx, command=None, *, args=None):
         text = f"Whitelisted player IDs > {args}"
         data["config"][f"{command}"] = args.split(", ")
 
+    elif command == commands[12]:
+
+
+        if image(args):
+            text = f'New shop image'
+            data["config"][f"{command}"] = args
+
+            embed.set_image(url=args)
+        else:
+            text = "This is not a valid URL"
+
+    elif command == commands[13]:
+
+        text = f'The shops name is now "{args}"'
+        data["config"][command] = args
+    else:
+        text = f"There is no server command with the name {command}"
     make_asset(f"{config_location}\\{ctx.guild.id}\\config.json", "w", data, 4)
 
 
@@ -1853,7 +1992,7 @@ async def warn(ctx, player : discord.Member, *, reason : str=None):
 
         try:
             warnings = int(return_data(file=path, tabel="setting1", sub_tabel="warnings"))
-            max_warnings = return_data(file=config_path, tabel="main", sub_tabel="warnings")
+            max_warnings = return_data(file=config_path, tabel="config", sub_tabel="max_warnings")
             new_warning_count = warnings+1
 
         except FileNotFoundError:
@@ -1884,7 +2023,7 @@ async def warn(ctx, player : discord.Member, *, reason : str=None):
 
             await ctx.send(embed=embed)
     except AttributeError:
-        await ctx.send
+        await ctx.send("Missing Arguments")
 
 @client.command()
 @commands.has_permissions(administrator=True)
@@ -1894,20 +2033,25 @@ async def leave(ctx):
 
     await guild.leave()
 
-@client.command()
+@client.command(aliases=["ah"])
 async def adminhelp(ctx):
 
     embed = discord.Embed(color=LIGHT_BLUE)
 
     embed.set_author(name="Administrator Help")
 
+    embed.add_field(name=":fist:  Punishment Commands  :fist:", value="\u200b", inline=False)
     embed.add_field(name=f"{CLIENT_PREFIX}kick", value="Kicks Selected Player")
     embed.add_field(name=f"{CLIENT_PREFIX}ban", value="Bans Selected Player")
-    embed.add_field(name=f"{CLIENT_PREFIX}leave", value="Bot will leave the server")
     embed.add_field(name=f"{CLIENT_PREFIX}warn", value="Warns selected Player")
+    embed.add_field(name=":star:  General Administration Commands  :star:", value="\u200b", inline=False)
+    embed.add_field(name=f"{CLIENT_PREFIX}leave", value="Bot will leave the server")
     embed.add_field(name=f"{CLIENT_PREFIX}server", value="Server configurations")
     embed.add_field(name=f"{CLIENT_PREFIX}purge", value="Purges a channel by a selected amount of messages")
     embed.add_field(name=f"{CLIENT_PREFIX}unban", value="Unbans selected Player")
+    embed.add_field(name=":money_with_wings:  Administrator Economy Commands  :money_with_wings:", value="\u200b", inline=False)
+    embed.add_field(name=f"{CLIENT_PREFIX}bank", value="Will show general infomation about the guilds account (Like: Giving or clearing the bank)")
+    embed.add_field(name=f"{CLIENT_PREFIX}sell", value=f"Will put an item in the shop (I STRONGLY recommend looking at usage help for this command, by doing {CLIENT_PREFIX}ahu)")
 
     await ctx.send(embed=embed)
 
@@ -2015,20 +2159,22 @@ async def ptrust(ctx, user : discord.Member=None, *, playlist_name=None):
 
         return await ctx.send(embed=embed)
     else:
+        try:
+            full_path = f"{playlist_location}\\{playlist_name}\\{playlist_name}.json"
+            playlist_data = return_data(full_path)
+            owner_id = playlist_data["metadata"]["playlist-author"]
 
-        full_path = f"{playlist_location}\\{playlist_name}\\{playlist_name}.json"
-        playlist_data = return_data(full_path)
-        owner_id = playlist_data["metadata"]["playlist-author"]
+            if owner_id[0] == int(ctx.author.id):
+                owner_id.append(int(user.id))
 
-        if owner_id[0] == int(ctx.author.id):
-            owner_id.append(int(user.id))
+                make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
+                embed.set_author(name=f"{user} is now trusted")
+            else:
+                embed.set_author(name=f"You're not allowed to trust other people (Even if you're trusted, only owner of the playlist can do this)")
+        except TypeError:
+            embed.set_author(name=f'No playlist with the name "{playlist_name}"')
 
-            make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
-            embed.set_author(name=f"{user} is now trusted")
-        else:
-            embed.set_author(name=f"You're not allowed to trust other people (Even if you're trusted, only owner of the playlist can do this)")
         await ctx.send(embed=embed)
-
 @client.command()
 async def prtrust(ctx, user : discord.Member=None, *, playlist_name=None):
 
@@ -2164,15 +2310,22 @@ async def pprivacy(ctx, setting=None, *, playlist_name=None):
         await ctx.send(f'Playlist: "{playlist_name}" not found.')
 
 @client.command()
-async def asong(ctx, songs=None, playlist_name=None):
+async def asong(ctx):
 
     done = False
     done1 = False
 
-    embed = discord.Embed(color=LIGHT_BLUE)
-    song_list = []
+    args = parseArgs(ctx)
 
-    if songs is None or playlist_name is None:
+    try:
+        songs = args[0]
+        playlist_name = args[1]
+
+        embed = discord.Embed(color=LIGHT_BLUE)
+        song_list = []
+
+    except IndexError:
+
         await ctx.send("What songs do you want to add? (Please seperate songs with a comma)")
         while done is False:
 
@@ -2197,6 +2350,10 @@ async def asong(ctx, songs=None, playlist_name=None):
             else:
                 pass
 
+    if songs == "current song":
+        songData = getSongMetaData(ctx)
+        songs = songData["metadata"]["name"]
+
     song_data_old = return_data(file=f"{playlist_location}\\{playlist_name}\\{playlist_name}.json", tabel="info", sub_tabel="playlist")
     song_data_full = return_data(file=f"{playlist_location}\\{playlist_name}\\{playlist_name}.json")
 
@@ -2220,8 +2377,13 @@ async def asong(ctx, songs=None, playlist_name=None):
     await ctx.send(embed=embed)
 
 @client.command()
-async def paserver(ctx, guild_id=None, playlist_name=None):
+async def paserver(ctx):
 
+    args = parseArgs(ctx)
+
+    print(args)
+    guild_id = args[0]
+    playlist_name = args[1]
     embed = discord.Embed(color=LIGHT_BLUE)
 
     done = False
@@ -2274,8 +2436,7 @@ async def paserver(ctx, guild_id=None, playlist_name=None):
 
             embed.set_author(name=f"Added {guild} to the playlist whitelist")
             playlist_data = return_data(file=full_path)
-            print(playlist_data['metadata']['server-playlist']['playlist-guild'])
-            playlist_data['metadata']['server-playlist']['playlist-guild'].append(int(guild_id))
+            playlist_data['metadata']['server-playlist'].append(int(guild_id))
 
             make_asset(full_path, "w", playlist_data, 4)
         except KeyError:
@@ -2378,24 +2539,30 @@ async def atag(ctx):
     embed = discord.Embed(color=LIGHT_BLUE)
     text = None
 
-    playlistName = args[0]
-    playlistTags = args[1]
+    try:
+        playlistName = args[0]
+        playlistTags = args[1]
 
-    if checkPlaylistExistance(playlistName):
-        path = f"{playlist_location}\\{playlistName}\\{playlistName}.json"
-        if checkPlaylistPrivacy(playlistName) or check_owner(playlistName, ctx.author.id):
-            playlistData = return_data(path)
+        if checkPlaylistExistance(playlistName):
+            path = f"{playlist_location}\\{playlistName}\\{playlistName}.json"
+            if checkPlaylistPrivacy(playlistName) or check_owner(playlistName, ctx.author.id):
+                playlistData = return_data(path)
 
-            playlistData["metadata"]["tags"].append(playlistTags)
-            make_asset(path, "w", playlistData, 4)
+                playlistData["metadata"]["tags"].append(playlistTags)
+                make_asset(path, "w", playlistData, 4)
 
-            text = f'Appened "{playlistTags}" onto "{playlistName}"'
+                text = f'Appened "{playlistTags}" onto "{playlistName}"'
+            else:
+                text = "You're not the owner of this playlist."
         else:
-            text = "You're not the owner of this playlist."
-    else:
-        text = "The playlist you're looking for does not exist."
+            text = "The playlist you're looking for does not exist."
 
-    await sendEmbed(embed, ctx, text)
+
+    except IndexError:
+        text = f"Missing Arguments, please look at the usage for this command by doing {CLIENT_PREFIX}usage 2"
+
+    finally:
+        await sendEmbed(embed, ctx, text)
 
 @client.command(aliases=["pt"])
 async def playliststag(ctx, *, tag):
@@ -2406,7 +2573,7 @@ async def playliststag(ctx, *, tag):
     if len(tegsReturn) <= 0:
         embed.set_author(name="Ø No playlists matching that tag.")
     else:
-        embed.set_author(name="Ø Here are some playlists matching that tag")
+        embed.set_author(name="Ø Here are some popular playlists matching that tag")
 
         for x in range(5):
             try:
@@ -2512,6 +2679,8 @@ async def link(ctx):
 
     embed = discord.Embed(color=LIGHT_BLUE)
     args = parseArgs(ctx)
+    sendEmbed = True
+    done = False
 
     try:
         if len(args) >= 1:
@@ -2522,42 +2691,69 @@ async def link(ctx):
 
             if command == "make":
                 try:
-                    linkedServers = args[1]
-                    guildPath = f"{guild_location}\\{linkedServers}\\{linkedServers}-LINKS.json"
+                    try:
+                        linkedServers = args[1]
+                        guildPath = f"{guild_location}\\{linkedServers}\\{linkedServers}-LINKS.json"
 
-                    userGlobalPath = f"{global_profile}\\{ctx.author.id}\\{ctx.author.id}.json"
-                    globalData = return_data(userGlobalPath)
+                        userGlobalPath = f"{global_profile}\\{ctx.author.id}\\{ctx.author.id}.json"
+                        globalData = return_data(userGlobalPath)
 
-                    guildLinkData = return_data(guildPath)
-                    memberData = return_data(linkLocation)
+                        guildLinkData = return_data(guildPath)
+                        memberData = return_data(linkLocation)
+                        linkedServersName = client.get_guild(int(linkedServers))
 
-                    if memberData["member-link"]["link-enabled"] != True:
-                        embed.set_author(name=f'Link is not enabled. To enable it, do this command "{CLIENT_PREFIX}link link, True"')
-                    else:
-
-                        if globalData["global"]["has-link"] is True:
-                            embed.set_author(name="You already have a link.")
+                        if linkedServers == str(ctx.guild.id) and guildLinkData is not None:
+                            await ctx.send("You cannot make a link to THIS server :joy:")
+                            sendEmbed = False
                         else:
-                            memberData["member-link"]["links"].append(linkedServers)
-                            memberData["member-link"]["links"].append(f"{ctx.guild.id}")
-                            globalData["global"]["has-link"] = True
-                            globalData["global"]["link-id"] = str(linkedServers)
+                            if memberData["member-link"]["link-enabled"] != True:
+                                embed.set_author(name=f'Link is not enabled. To enable it, do this command "{CLIENT_PREFIX}link link, True"')
+                            else:
+
+                                if globalData["global"]["has-link"] is True:
+                                    embed.set_author(name="You already have a link.")
+                                else:
+
+                                    await ctx.send('Are you sure? this will delete any Profile Experience data you have on this server, and the server you want to make the link with. (This will not delete playlists nor your playlist records)(Type: "True" to continue, Type: "False" or any other text to exit)')
+
+                                    while done is False:
+
+                                        args = await client.wait_for('message')
+                                        args = getUserArgs(ctx, args)
+
+                                        if args == "True":
+
+                                            memberData["member-link"]["links"].append(linkedServers)
+                                            memberData["member-link"]["links"].append(f"{ctx.guild.id}")
+                                            globalData["global"]["has-link"] = True
+                                            globalData["global"]["link-id"] = str(linkedServers)
+                                            globalData["global"]["link-made-id"] = str(ctx.guild.id)
 
 
-                            guildLinkData["guild-links"][f"{ctx.author.id}"] = []
-                            guildLinkData["guild-links"][f"{ctx.author.id}"].append(f"{ctx.author.id}")
-                            guildLinkData["guild-links"][f"{ctx.author.id}"].append(f"{ctx.guild.id}")
+                                            guildLinkData["guild-links"][f"{ctx.author.id}"] = []
+                                            guildLinkData["guild-links"][f"{ctx.author.id}"].append(f"{ctx.author.id}")
+                                            guildLinkData["guild-links"][f"{ctx.author.id}"].append(f"{ctx.guild.id}")
 
 
-                            make_asset(linkLocation, "w", memberData, 4)
-                            make_asset(guildPath, "w", guildLinkData, 4)
-                            make_asset(userGlobalPath, "w", globalData, 4)
+                                            make_asset(linkLocation, "w", memberData, 4)
+                                            make_asset(guildPath, "w", guildLinkData, 4)
+                                            make_asset(userGlobalPath, "w", globalData, 4)
 
-                            print(return_data(guildPath))
+                                            embed.set_author(name=f"Added '{linkedServersName}' to your link")
+                                            done = True
+                                        elif args == None:
+                                            pass
+                                        else:
+                                            await ctx.send("Cancelled Link")
+                                            done = True
+                                            sendEmbed = False
 
-                            embed.set_author(name=f"Added '{linkedServers}' to your link")
-                except Exception as e:
-                    embed.set_author(name=f"Foreign Error Ø {e}")
+                    except IndexError:
+                        return
+
+                except TypeError:
+                    embed.set_author(name="Error")
+                    embed.add_field(name="Help > ", value=f"I cannot find the specified server, remember, you need to put in a server ID, not the name. Example, the server ID you sent this message in, is {ctx.guild.id} (PS: You need developer mode to get the ID, search on google of how to do that, Good luck, and I'm sorry this is so complicated...)")
             elif command == "link":
 
                 value = args[1]
@@ -2609,7 +2805,13 @@ async def link(ctx):
         embed.set_author(name=f"Missing Arguments, Actual Console Error>{e}")
 
     finally:
-        await ctx.send(embed=embed)
+        if sendEmbed is True:
+            try:
+                await ctx.send(embed=embed)
+            except discord.errors.HTTPException:
+                await ctx.send("Missing Arguments")
+        else:
+            return
 
 @client.command()
 async def lyrics(ctx):
@@ -2619,7 +2821,10 @@ async def lyrics(ctx):
             await ctx.send(f"Searching for: {args[1]}\n\nBy: {args[0]}")
             artist = genius.search_song(args[1], args[0])
 
-            await ctx.send(artist.lyrics)
+            if artist is None:
+                await ctx.send(f'No song with the name "{args[1]}" by "{args[0]}"')
+            else:
+                await ctx.send(artist.lyrics)
         except IndexError:
             await ctx.send("Missing Arguments")
     except discord.errors.HTTPException:
@@ -2627,12 +2832,478 @@ async def lyrics(ctx):
             lyrics = str(artist.lyrics)
             half1, half2 = lyrics[:len(lyrics)//2],lyrics[len(lyrics)//2:]
 
+
             await ctx.send(half1)
             await ctx.send(half2)
             await ctx.send("\n\nNOTE: I had to split the song lyrics in half, due to discords 2000 character limit, so the lyrics have been sent in two messages.")
 
         except Exception as e:
             await ctx.send(f"EXCEPTION >>> {e}\n\nThis error is a un-caught Error, this probably a song that is too big to split in\ntwo messages, so discord threw this error, I didn't know a song that was over\n4000 Characters so I could not test the code properly lmao ")
+
+@client.command()
+@commands.is_owner()
+async def database(ctx):
+    text = "No data"
+    args = parseArgs(ctx, Type="url")
+
+
+    try:
+        path = args[0]
+    except IndexError:
+        path = args[0]
+
+    try:
+        dataPath = f"{file_path}\\{path}"
+        if path.endswith(".json"):
+            data = return_data(dataPath, ty="text")
+        else:
+            data = os.listdir(dataPath)
+
+        text = f"{data}\n\n\nDATA PATH: Database\\{path}"
+    except Exception as e:
+        text = f"ERROR @ {e}"
+
+    await ctx.send(text)
+
+@client.command()
+@commands.has_permissions(administrator=True)
+async def sell(ctx):
+
+    args = parseArgs(ctx, Type="url")
+    guildID = str(ctx.guild.id)
+    bankLocation = f"{guild_location}\\{guildID}\\{guildID}-INVENTORY.json"
+    text = "CHECK CONSOLE FOR ERROR"
+    count = None
+    bankData = return_data(bankLocation)
+
+    try:
+        strn = args[0]
+        itemType = args[1]
+
+        if strn == "Sami" or strn == "sami":
+            text = "You cannot name a an item with this name, it represents a dark past."
+        else:
+            strnSplit = strn.split(" ")
+            e = []
+
+            for x in range(len(strnSplit)):
+                e.append(strnSplit[x])
+
+                strn = "-".join(e)
+
+            if itemType == "role":
+
+                try:
+                    role = args[2]
+                    description = args[3]
+                    price = args[4]
+                    count = int(args[5])
+
+                except IndexError:
+                    count = None
+
+                finally:
+                    try:
+
+                        roleID = discord.utils.get(client.get_guild(int(guildID)).roles, name=role)
+
+
+                        bankData[guildID]["items"].append(strn)
+                        bankData[f"{guildID}"]["guild-items"][strn] = {
+                        "role-name": roleID.id,
+                        "role-description": description,
+                        "role-price": price,
+                        "item-type": itemType,
+                        "buy-count": count
+                        }
+
+                        make_asset(bankLocation, "w", bankData, 4)
+
+                        if count is None:
+                            realCount = "Unlimited"
+                        else:
+                            realCount = count
+
+                            text = f"Made Role for sale in shop:\n\n**Item Name**\n{args[0]}\n\n**Role Name**\n{role}\n\n**Role Description**\n{description}\n\n**Role Price**\n{price}$\n\n**Item Displayname and Codename**\n{strn}\n\n**Item Stock**\n{realCount}"
+                    except AttributeError:
+                        text = f'No role with the name "{role}" (Note: It has to be spelling perfect) :D'
+
+            elif itemType == "text":
+                try:
+                    itemText = args[2]
+                    description = args[3]
+                    price = args[4]
+                    count = int(args[5])
+                except IndexError:
+                    count = None
+
+                finally:
+
+                    bankData[guildID]["items"].append(strn)
+                    bankData[f"{guildID}"]["guild-items"][strn] = {
+                    "role-name": itemText,
+                    "role-description": description,
+                    "role-price": price,
+                    "item-type": itemType,
+                    "buy-count": count
+                    }
+
+                    make_asset(bankLocation, "w", bankData, 4)
+
+                    if count is None:
+                        realCount = "Unlimited"
+                    else:
+                        realCount = count
+
+                    text = f"Made Message for sale in shop:\n\n**Item Name**\n{args[0]}\n\n**Message Description**\n{description}\n\n**Message Price**\n{price}$\n\n**Item Displayname and Codename**\n{strn}\n\n**Item Stock**\n{realCount}\n\n\n*note: If you want to change anything in this item.\nYou will have to delete this item with /remove\nAnd remake it.*"
+                    await ctx.author.send(f"{bankData[f'{guildID}']['guild-items'][strn]}\n\n\n\nNOTE: THIS IS YOUR SHOP ITEM IN RAW FORM, IN THE FUTURE i AM PLANNING TO MAKE IT SO YOU CAN MAKE A SHOP ITEM WITH\nTHIS TEMPLATE, IF YOU DO NOT KNOW HOW TO PROGRAM IN JSON, i WILL GIVE YOU INSTRUCTIONS SOON.\n\nEnjoy ^^")
+
+
+
+
+            else:
+                text = f'No item type matching the name "{itemType}"'
+    except IndexError:
+        text = "Missing Arguments"
+
+    finally:
+        await ctx.send(text)
+
+
+@client.command()
+async def buy(ctx):
+
+    args = parseArgs(ctx)
+    guildID = str(ctx.guild.id)
+    memberID = str(ctx.author.id)
+
+    done1 = False
+
+    guildShopPath = f"{guild_location}\\{guildID}\\{guildID}-INVENTORY.json"
+    userBankPath = f"{user_location}\\{guildID}\\{memberID}\\{memberID}-bank.json"
+
+    guildShopData = return_data(guildShopPath)
+    userBankData = return_data(userBankPath)
+
+    itemName = replaceSpaces(args[0])
+
+    if itemName in guildShopData[guildID]["guild-items"]:
+
+        if int(userBankData[memberID]["balance"]) >= int(guildShopData[guildID]["guild-items"][itemName]["role-price"]):
+            if 1 > 0:
+
+                roleID = guildShopData[guildID]["guild-items"][itemName]["role-name"]
+                roleName = ctx.guild.get_role(roleID)
+
+                await ctx.send(f'Are you sure you want to buy "{itemName}" for {guildShopData[guildID]["guild-items"][itemName]["role-price"]}$? (Reply "True" to continue with purchase, type anything else to cancel)')
+
+                while done1 is False:
+                    args_ = await client.wait_for('message')
+                    args_ = getUserArgs(ctx, args_)
+
+                    if args_ == "True":
+
+                        if guildShopData[guildID]["guild-items"][itemName]["item-type"] == "role":
+                            await ctx.author.add_roles(roleName)
+                            await ctx.send(f'You have bought the role "{itemName}" for {guildShopData[guildID]["guild-items"][itemName]["role-price"]}$!')
+
+                        elif guildShopData[guildID]["guild-items"][itemName]["item-type"] == "text":
+                            await ctx.author.send(f"Message > {guildShopData[guildID]['guild-items'][itemName]['role-name']}")
+
+                        else:
+
+                            done1 = True
+
+                        userBankData[memberID]["balance"] = int(userBankData[memberID]["balance"])-int(guildShopData[guildID]["guild-items"][itemName]["role-price"])
+                        guildShopData[guildID]["guild-balance"] = int(guildShopData[guildID]["guild-balance"])+int(guildShopData[guildID]["guild-items"][itemName]["role-price"])
+
+
+                        if guildShopData[guildID]["guild-items"][itemName]["buy-count"] is None:
+                            pass
+                        else:
+                            guildShopData[guildID]["guild-items"][itemName]["buy-count"] = guildShopData[guildID]["guild-items"][itemName]["buy-count"]-1
+
+                            if guildShopData[guildID]["guild-items"][itemName]["buy-count"] == 0:
+
+                                guildShopData[guildID]["items"].remove(itemName)
+                                del guildShopData[guildID]["guild-items"][itemName]
+                            else:
+                                pass
+
+                        make_asset(guildShopPath, "w", guildShopData, 4)
+                        make_asset(userBankPath, "w", userBankData, 4)
+
+                        done1 = True
+
+                    else:
+                        return await ctx.send("Cancelled Purchase")
+
+
+
+
+        else:
+            return await ctx.send("Your too poor to buy this item")
+    else:
+        return await ctx.send(f'No item with the name "{args[0]}"')
+
+@client.command()
+@commands.has_permissions(administrator=True)
+async def bank(ctx):
+
+    text = "error"
+    embed = discord.Embed(color=LIGHT_BLUE)
+    sendMessage = True
+
+    try:
+        args = parseArgs(ctx)
+        command = args[0]
+
+        guildID = str(ctx.guild.id)
+        ownerID = str(ctx.author.id)
+
+        guildBankPath = f"{guild_location}\\{guildID}\\{guildID}-INVENTORY.json"
+        ownerBankPath = f"{user_location}\\{guildID}\\{ownerID}\\{ownerID}-bank.json"
+
+        if command == "claim":
+            guildBankData = return_data(guildBankPath)
+            ownerBankData = return_data(ownerBankPath)
+
+            ownerBankData[ownerID]["balance"] = ownerBankData[ownerID]["balance"]+guildBankData[guildID]["guild-balance"]
+            guildBankData[guildID]["guild-balance"] = 0
+
+            make_asset(guildBankPath, "w", guildBankData, 4)
+            make_asset(ownerBankPath, "w", ownerBankData, 4)
+
+            text = f"I have taken all cash from the server' balance, your balance is now {ownerBankData[ownerID]['balance']}"
+
+        elif command == "balance":
+            guildBankData = return_data(guildBankPath)
+            text = f"The guilds balance is {guildBankData[guildID]['guild-balance']}$"
+
+        elif command == "help":
+            embed.set_author(name="Bank Help")
+
+            embed.add_field(name=f"{CLIENT_PREFIX}bank claim", value="Claims all money that is in the guilds account, whomever may use this command will get all of the royalties. (Note: Only administrators and owner can do this command)", inline=False)
+            embed.add_field(name=f"{CLIENT_PREFIX}bank balance", value="Shows how much the guild has in savings (You can get money buy making items in your shop)", inline=False)
+
+            sendMessage = False
+            return await ctx.send(embed=embed)
+
+
+
+        else:
+            embed.set_author(name="Bank Help")
+
+            embed.add_field(name=f"{CLIENT_PREFIX}bank claim", value="Claims all money that is in the guilds account, whomever may use this command will get all of the royalties. (Note: Only administrators and owner can do this command)", inline=False)
+            embed.add_field(name=f"{CLIENT_PREFIX}bank balance", value="Shows how much the guild has in savings (You can get money buy making items in your shop)", inline=False)
+
+            sendMessage = False
+            return await ctx.send(embed=embed)
+
+    except IndexError:
+        text = "Missing Arguments"
+
+    finally:
+        if sendMessage is True:
+            await ctx.send(text)
+
+@client.command()
+async def shop(ctx):
+    embed = discord.Embed(color=LIGHT_BLUE)
+
+    guildID = str(ctx.guild.id)
+
+    guildBankPath = f"{guild_location}\\{guildID}\\{guildID}-INVENTORY.json"
+    guildBankData = return_data(guildBankPath)
+    configLocation = return_data(f"{config_location}\\{ctx.guild.id}\\config.json")
+
+    try:
+        embed.set_author(name=configLocation["config"]["shop_name"])
+    except:
+        embed.set_author(name=f"{ctx.guild}s Shop")
+    try:
+        embed.set_image(url=configLocation["config"]["shop_image"])
+    except:
+        embed.set_image(url=vorbis_img2)
+
+    finally:
+        for x in range(len(guildBankData[guildID]["items"])):
+
+            currentItem = guildBankData[guildID]["items"][x]
+            daysLeft = None
+
+            if guildBankData[guildID]['guild-items'][currentItem]['buy-count'] is None:
+                daysLeft = "Unlimited"
+            else:
+                daysLeft = guildBankData[guildID]['guild-items'][currentItem]['buy-count']
+
+            embed.add_field(name=f"Item {x+1}", value="\u200b", inline=False)
+            embed.add_field(name=f"Item {x+1} Name  Ø  ", value=f"{currentItem}", inline=False)
+            embed.add_field(name=f"Item {x+1} Description  Ø  ", value=f"{guildBankData[guildID]['guild-items'][currentItem]['role-description']}", inline=False)
+            embed.add_field(name=f"Item {x+1} Price  Ø  ", value=f"{guildBankData[guildID]['guild-items'][currentItem]['role-price']}$", inline=False)
+            embed.add_field(name=f"Item {x+1} Stock  Ø  ", value=daysLeft, inline=False)
+            embed.add_field(name=f"Item {x+1} Command  Ø  ", value=f"{CLIENT_PREFIX}buy {currentItem}", inline=False)
+
+            embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+        await ctx.send(embed=embed)
+
+@client.command()
+@commands.has_permissions(administrator=True)
+async def remove(ctx):
+
+    try:
+        args = parseArgs(ctx)
+        shopItem = replaceSpaces(args[0])
+        text = "Error"
+
+        guildID = str(ctx.guild.id)
+        guildShopPath = f"{guild_location}\\{guildID}\\{guildID}-INVENTORY.json"
+        guildShopData = return_data(guildShopPath)
+
+        try:
+            del guildShopData[guildID]["guild-items"][shopItem]
+            guildShopData[guildID]["items"].remove(shopItem)
+
+            make_asset(guildShopPath, "w", guildShopData, 4)
+
+            text = f'Deleted shop item: "{shopItem}"'
+        except KeyError:
+            text = f'No item with the name "{shopItem}"'
+    except IndexError:
+        text = "Missing Arguments"
+
+    finally:
+        await ctx.send(text)
+
+@client.command()
+async def ahu(ctx):
+
+    embed = discord.Embed(color=LIGHT_BLUE)
+
+    embed.set_author(name="Admin Command Usage")
+
+    embed.add_field(name=f"{CLIENT_PREFIX}kick", value=f"{CLIENT_PREFIX}kick <Mention Player> <Reason (Optional)>")
+    embed.add_field(name=f"{CLIENT_PREFIX}ban", value=f"{CLIENT_PREFIX}ban <Mention Player> <Reason (Optional)>")
+    embed.add_field(name=f"{CLIENT_PREFIX}warn", value=f"{CLIENT_PREFIX}warn <Mention Player> <Reason>")
+    embed.add_field(name=f"{CLIENT_PREFIX}leave", value=f"{CLIENT_PREFIX}leave")
+    embed.add_field(name=f"{CLIENT_PREFIX}server", value=f"{CLIENT_PREFIX}server help")
+    embed.add_field(name=f"{CLIENT_PREFIX}purge", value=f"{CLIENT_PREFIX}purge <Amount of Messages>")
+    embed.add_field(name=f"{CLIENT_PREFIX}unban", value=f"{CLIENT_PREFIX}unban <Player name and tag, Example: Samy#4995>")
+    embed.add_field(name=f"{CLIENT_PREFIX}bank", value=f"{CLIENT_PREFIX}bank help")
+    embed.add_field(name=f"{CLIENT_PREFIX}sell", value=f"{CLIENT_PREFIX}sell <Item Name>, <Item Type (It can be role, or text)>, <Message you want to send player, or the role name depending on what you chose>, <Description of item>, <Price>, <Stock (Optional)>")
+
+    await ctx.send(embed=embed)
+
+@client.command()
+async def comment(ctx):
+
+    embed = discord.Embed(color=LIGHT_BLUE)
+    args = parseArgs(ctx)
+    metadata = return_data(metadata_location+f"\\{ctx.guild.id}\\payload-data.json")
+    fullPlaylistLocation = playlist_location+f"\\{metadata['data']['queued-playlist']}\\{metadata['data']['queued-playlist']}.json"
+    playlistLocalLocation = return_data(fullPlaylistLocation)
+    messageText = None
+
+    if playlistLocalLocation is None:
+        await ctx.send("You have no playlist that is queued")
+    else:
+        try:
+            messageText = args[0]
+
+            playlistLocalLocation["metadata"]["playlist-comment-count"] = playlistLocalLocation["metadata"]["playlist-comment-count"]+1
+            playlistLocalLocation["metadata"]["playlist-comments"][playlistLocalLocation["metadata"]["playlist-comment-count"]] = {
+                "comment-author": ctx.author.id,
+                "comment-guild": ctx.guild.id,
+                "comment-text": messageText,
+                "comment-publish": str(datetime.datetime.now()).split(".")[0]
+
+            }
+        except IndexError:
+            await ctx.send("You cannot send an empty message.")
+
+        finally:
+            make_asset(fullPlaylistLocation, "w", playlistLocalLocation, 4)
+
+            embed.set_author(name="Posted Comment")
+            embed.add_field(name="Comment Text", value=messageText)
+            embed.set_footer(text=f"Your comment ID is {playlistLocalLocation['metadata']['playlist-comment-count']}, you may use this while searching for your comment, Example: {CLIENT_PREFIX}read {metadata['data']['queued-playlist']}, {playlistLocalLocation['metadata']['playlist-comment-count']}")
+
+            await ctx.send(embed=embed)
+
+@client.command()
+async def read(ctx):
+
+    embed = discord.Embed(color=LIGHT_BLUE)
+    args = parseArgs(ctx)
+    numbers = []
+    chosen_numbers = []
+    specifiedComment = None
+    try:
+        playlist = args[0]
+        playlistPath = playlist_location+f"\\{playlist}\\{playlist}.json"
+        playlistData = return_data(playlistPath)
+
+        try:
+            specifiedComment = int(args[1])
+        except IndexError:
+            pass
+
+        if playlistData["metadata"]["playlist-comment-count"] == 0:
+            await ctx.send("This playlist has no comments.")
+        else:
+            for x in range(playlistData["metadata"]["playlist-comment-count"]):
+                numbers.append(x)
+
+            if isinstance(specifiedComment, int):
+                try:
+                    embed.set_author(name=f"Comment Number {specifiedComment}")
+
+                    y = specifiedComment
+                    author = client.get_user(playlistData["metadata"]["playlist-comments"][str(y)]["comment-author"])
+                    guild = client.get_guild(int(playlistData["metadata"]["playlist-comments"][str(y)]["comment-guild"]))
+                    text = playlistData["metadata"]["playlist-comments"][str(y)]["comment-text"]
+                    time = playlistData["metadata"]["playlist-comments"][str(y)]["comment-publish"]
+
+                    embed.add_field(name=f"At: {time} From: {guild}, User: {author}", value=text, inline=False)
+                except KeyError:
+                    return await ctx.send(f"There is no comment up to that entry, (Note: you chose a comment by either doing {CLIENT_PREFIX}read <The playlist you want to read comments from>\nor: {CLIENT_PREFIX}read <The playlist you want to read comments from>, <The comment number>\nYou can get how many comments there are by doing:\n{CLIENT_PREFIX}read <The playlist you want to read comments from>\,And it will say at the bottom of the embed message)")
+            else:
+                embed.set_author(name="Playlist Comments")
+
+                for x in range(5):
+
+                    y = random.choice(numbers)+1
+
+                    if y in chosen_numbers:
+                        continue
+                    else:
+
+                        author = client.get_user(playlistData["metadata"]["playlist-comments"][str(y)]["comment-author"])
+                        guild = client.get_guild(int(playlistData["metadata"]["playlist-comments"][str(y)]["comment-guild"]))
+                        text = playlistData["metadata"]["playlist-comments"][str(y)]["comment-text"]
+                        time = playlistData["metadata"]["playlist-comments"][str(y)]["comment-publish"]
+
+                        embed.add_field(name=f"At: {time} From: {guild}, User: {author}", value=text, inline=False)
+                        chosen_numbers.append(y)
+
+                if playlistData['metadata']['playlist-comment-count'] == 1:
+                    embed.set_footer(text=f"There is {playlistData['metadata']['playlist-comment-count']} comment on this playlist")
+                else:
+                    embed.set_footer(text=f"There are {playlistData['metadata']['playlist-comment-count']} comments on this playlist")
+
+            await ctx.send(embed=embed)
+
+    except IndexError:
+        await ctx.send(f"You've not chosen a playlist you want to read comments from")
+
+@client.command()
+async def credit(ctx):
+
+    austin, fabian = 400089431933059072, 533285613021954049
+    austinName, fabianName = client.get_user(austin), client.get_user(fabian)
+
+    await ctx.send(f"THis bot is made by:\n\n{austinName} & {fabianName}\nBoth on discord")
 for filename in os.listdir(cog_location):
     if filename.endswith('.py'):
         client.load_extension(f'Cogs.{filename[:-3]}')
