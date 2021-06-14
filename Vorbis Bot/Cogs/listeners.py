@@ -1,16 +1,20 @@
-import discord, json, os, datetime, random
+import discord, json, os, datetime, random, requests, shutil, asyncio
 
 from discord.ext import tasks, commands
 from discord.utils import get
+from PIL import Image, ImageFont, ImageDraw
 
-file_path = "Working Path"
+file_path = "C:\\Users\\Default\\Documents\\Python\\Scripts\\Vorbis"
+#file_path = "A:\\Documents\\Python\\Scripts\\Vorbis"
 
 user_location = file_path+"\\Members"
 guild_location = file_path+"\\Guilds"
 config_location = file_path+"\\Config"
 global_profile = file_path+"\\GlobalProfiles"
 metadata_location = file_path+"\\Metadata"
-vorbis_img = "empty_variable"
+queue_location = file_path+"\\Queue"
+asset_location = file_path+"\\Assets"
+vorbis_img = "https://cdn.discordapp.com/attachments/800136030228316170/802961405296902154/icon2.jpg"
 
 WHITE = discord.Color.from_rgb(255, 255, 255)
 TERQ = discord.Color.from_rgb(49,171,159)
@@ -24,6 +28,18 @@ DARK_BLUE = discord.Color.dark_blue()
 DARK_ORANGE = discord.Color.dark_orange()
 ORANGE = discord.Color.orange()
 PURPLE = discord.Color.purple()
+
+def filt_str_mod(string : str):
+
+    filtered_1 = ''.join(filter(lambda char: char != '"', string))
+    filtered_2 = ''.join(filter(lambda char: char != ':', filtered_1))
+    filtered_3 = ''.join(filter(lambda char: char != '|', filtered_2))
+    filtered_4 = ''.join(filter(lambda char: char != '.wav', filtered_3))
+    filtered_5 = ''.join(filter(lambda char: char != ']', filtered_4))
+    filtered_6 = ''.join(filter(lambda char: char != '[', filtered_5))
+    filtered_7 = ''.join(filter(lambda char: char != "'", filtered_6))
+
+    return filtered_7
 
 def make_asset(file : os.PathLike, mode : str, data : dict=None, indent : int=4):
     if data is None:
@@ -91,7 +107,20 @@ class listeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
+
+        if message.author.id == 798867893910765579:
+            return
+
         channel = None
+        member = message.author
+        main_usr_data = return_data(f"{user_location}\\{message.guild.id}\\{message.author.id}\\{message.author.id}.json")
+        true_false = [True, False, True, None]
+
+        #if random.choice(true_false) is True:
+        #    pass
+        #else:
+        #    return
+
         try:
             if return_data(f"{config_location}\\{message.guild.id}\\config.json", "config", "log_channel") is not None:
                 pass
@@ -106,8 +135,7 @@ class listeners(commands.Cog):
             except AttributeError:
                 pass
 
-            if message.author.id == 798867893910765579:
-                return
+
 
             usr_exp = 0
             until_nxt_lvl = None
@@ -134,7 +162,18 @@ class listeners(commands.Cog):
                                 "has-link": False,
                                 "link-id": None,
                                 "playlist-list": {},
-                                "listened-playlist-list": []
+                                "listened-playlist-list": [],
+                                "auto-correct": {
+                                    "failure": {
+                                        "failure-name": None,
+                                        "command-completion": False,
+                                        "failure-count": 0,
+                                        "correct-playlist": None
+                                    }
+                                },
+                                "chatroom": {
+                                    "connected-chatroom": None
+                                }
                             })
                             make_asset(global_path+f"\\{message.author.id}.json", "w", global_data, indent=4)
 
@@ -144,8 +183,11 @@ class listeners(commands.Cog):
                         "member-id": str(member_id),
                         "member-name": str(name),
                         "member-avatar": str(avatar),
-                        "member-joindate": str(message.author.joined_at),
-                        "member-exp": 0
+                        "member-joindate": str(message.author.joined_at)
+                    })
+
+                    member_metadata[f'progress-bar'] = ({
+                        "progress-bar-count": 0
                     })
                     json.dump(member_metadata, write_member, indent=4)
 
@@ -171,7 +213,7 @@ class listeners(commands.Cog):
 
                         data = {}
                         numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-                        level_numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+                        level_numbers = [50, 60, 70, 80, 90, 100]
 
                         if message.guild.premium_tier == 0:
                             new_exp = usr_exp+1
@@ -212,12 +254,12 @@ class listeners(commands.Cog):
                             if usr_lvl >= 100:
                                 next_milestone = "No more milestones"
 
+                            main_usr_data["progress-bar"]["progress-bar-count"] = 0
 
                             embed.set_author(name="Level Up \u200b")
                             embed.set_image(url=message.author.avatar_url)
 
                             embed.add_field(name=f"Ø   {message.author} levelled up to level {usr_lvl}!", value="\u200b")
-                            embed.add_field(name=f"Ø   Eperience Needed to level up   Ø   {until_nxt_lvl}", value="\u200b", inline=False)
                             embed.add_field(name=f"Ø   Next milestone   Ø   {next_milestone}", value="\u200b", inline=False)
 
                             embed.set_footer(text="Time of Level Up Ø {}  UTC".format(curnt_time.split(".")[0]))
@@ -225,12 +267,9 @@ class listeners(commands.Cog):
 
 
                             if channel is not None:
-                                print("Sending EMbed")
                                 await channel.send(embed=embed)
                             else:
                                 await self.client.get_guild(message.guild.id).get_channel(message.channel.id).send(embed=embed)
-
-                                print("User did not hit a milestone")
 
                             if role is not None:
                                 await message.author.add_roles(role)
@@ -240,6 +279,11 @@ class listeners(commands.Cog):
                                     await message.author.remove_roles(roleToRemove)
                             else:
                                 pass
+
+                        if usr_exp % 2 == 0:
+                            pass
+                        else:
+                            main_usr_data["progress-bar"]["progress-bar-count"] = main_usr_data["progress-bar"]["progress-bar-count"]+1
 
                         data[member_id] = ({
                             "member-exp": new_exp,
@@ -274,9 +318,12 @@ class listeners(commands.Cog):
                                     guildPath = f"{user_location}\\{link}\\{userID}\\{userID}-exp.json"
 
                                     make_asset(guildPath, "w", data, 4)
+                                    make_asset(f"{user_location}\\{message.guild.id}\\{message.author.id}\\{message.author.id}.json", "w", main_usr_data, 4)
+                                    make_asset(metadata_location+f"\\{message.guild.id}\\payload-data.json", "w", userMetadata, 4)
 
                                 else:
-                                    if globalData["global"]["has-link"] is True:
+                                    print(f"{globalData['global']['has-link']} >>>> {self.client.get_guild(globalData['global']['link-id'])}")
+                                    if globalData["global"]["has-link"] is True and self.client.get_guild(globalData["global"]["link-id"]) is None:
 
                                         userLinks["member-link"]["links"].clear()
                                         globalData["global"]["has-link"] = False
@@ -294,10 +341,9 @@ class listeners(commands.Cog):
                             except IndexError:
                                 pass
 
+                        make_asset(f"{user_location}\\{message.guild.id}\\{message.author.id}\\{message.author.id}.json", "w", main_usr_data, 4)
                         make_asset(metadata_location+f"\\{message.guild.id}\\payload-data.json", "w", userMetadata, 4)
                         json.dump(data, write_data, indent=4)
-
-                    make_plr()
 
             except FileNotFoundError:
                 if os.path.isdir(f"{user_location}\\{message.guild.id}\\{message.author.id}"):
@@ -393,6 +439,9 @@ class listeners(commands.Cog):
             }
         })
 
+        member_metadata['progress-bar'] = ({
+            "progress-bar-count": 0
+        })
         member_links[f"member-link"] = ({
             "link-enabled": False,
             "links": []
@@ -401,7 +450,7 @@ class listeners(commands.Cog):
         member_level[member.id] = ({
             "member-exp": 0,
             "member-level": 0,
-            "member-until-next-lvl": 5
+            "member-until-next-lvl": 50
         })
 
         member_bank[f"{member.id}"] = ({
@@ -446,20 +495,34 @@ class listeners(commands.Cog):
         embed.add_field(name=f"{member} has joined {member.guild}", value=g_txt)
         embed.set_image(url=g_img)
 
-        await self.client.get_channel(int(g_chl)).send(embed=embed)
+        try:
+            await self.client.get_channel(int(g_chl)).send(embed=embed)
+        except discord.errors.Forbidden:
+            pass
+
+        image = str(member.avatar_url)
+
 
         if os.path.isfile(f"{c_path}\\join_role.json"):
+            try:
+                role = return_data(file=f"{c_path}\\join_role.json", tabel="join_role", sub_tabel="role")
+                role_to_give = discord.utils.get(self.client.get_guild(member.guild.id).roles, name=role)
 
-            role = return_data(file=f"{c_path}\\join_role.json", tabel="join_role", sub_tabel="role")
-            role_to_give = discord.utils.get(self.client.get_guild(member.guild.id).roles, name=role)
-
-            await member.add_roles(role_to_give)
-
+                await member.add_roles(role_to_give)
+            except AttributeError:
+                pass
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
 
         async def make_role(role_name : str, color):
             await guild.create_role(name=f"{role_name}", colour=color)
+
+        channel = None
+
+        try:
+            channel = await self.client.get_channel(guild.system_channel.id).create_invite(reason="For security purposes.")
+        except AttributeError:
+            pass
 
         directories = ['Music', 'Queue', 'Temp', 'Members', 'Metadata', 'Resources', 'Config']
 
@@ -562,10 +625,11 @@ class listeners(commands.Cog):
         links = {}
         bank = {}
         payload = {}
+        metadata = {}
 
         config['config'] = ({
-            "vol": 1.0,
-            "warnings": 3
+            "vol": 0.3,
+            "loop": False
         })
 
         links["guild-links"] = ({
@@ -579,9 +643,9 @@ class listeners(commands.Cog):
         })
 
         metadata['metadata'] = ({
-            "name": title,
-            "views": views,
-            "author": ctx.author.name,
+            "name": None,
+            "views": None,
+            "author": None,
             "queued-playlist": None
         })
         payload["data"] = ({
@@ -606,7 +670,6 @@ class listeners(commands.Cog):
             with open(guild_location+f"\\{guild.id}\\{guild.id}.json", "w+") as edit_svr_metadata:
 
                 server_matadata = {}
-
                 server_matadata[guild.id] = ({
                     f"{guild.id}-id": str(guild.id),
                     f"{guild.id}-ico": str(guild.icon),
@@ -615,7 +678,8 @@ class listeners(commands.Cog):
                     f"{guild.id}-desc": str(guild.description),
                     f"{guild.id}-cunrt-boosts": str(guild.premium_subscription_count),
                     f"{guild.id}-roles": str(guild.roles),
-                    f"{guild.id}-member-count": str(guild.member_count)
+                    f"{guild.id}-member-count": str(guild.member_count),
+                    f"{guild.id}-invite": str(channel)
 
                 })
 
@@ -629,7 +693,7 @@ class listeners(commands.Cog):
         fabian, austin = self.client.get_user(533285613021954049), self.client.get_user(400089431933059072)
 
         embed.set_author(name=f"I have joined {guild}!")
-        embed.add_field(name="I am Vorbis!", value="I can play songs, make playlists, queue songs, and I have a level system! do /help for help, and /usage for command usage!")
+        embed.add_field(name="I am Vorbis!", value="I can play songs, make playlists, queue songs, and I have a level system! do /help for help, and /usage for command usage!\n(This is Austin Talking) And here is Vorbis' YouTube Channel, I will upload tutorials on how to operate Vorbis. As I understand it is difficult to use, I apologise.")
         embed.set_footer(text=f"Programmed by {fabian} and {austin} (On discord) 👩‍💻")
         embed.set_thumbnail(url=vorbis_img)
 
@@ -666,6 +730,9 @@ class listeners(commands.Cog):
 
         embed = discord.Embed(color=DARK_BLUE)
         g_id = member.guild.id
+
+        if member.id == 798867893910765579:
+            return
 
         location_msg = f"{config_location}\\{g_id}\\config.json"
         location_img = f"{config_location}\\{g_id}\\config.json"
@@ -711,27 +778,52 @@ class listeners(commands.Cog):
         ctx, member = self.client.get_channel(payload.channel_id), payload.member
         messageChannel = self.client.get_channel(payload.channel_id)
         message = await messageChannel.fetch_message(payload.message_id)
+        embed = discord.Embed(color=LIGHT_BLUE)
+
         try:
             channel, vorbis = member.voice.channel, self.client.get_user(self.client.user.id)
             guild = self.client.get_guild(payload.guild_id)
             voice = get(self.client.voice_clients, guild=guild)
 
             metadata = return_data(metadata_location+f"\\{payload.guild_id}\\payload-data.json")
+            config = return_data(f"{config_location}\\{payload.guild_id}\\config.json")
 
             if member.id != 798867893910765579:
                 if member in channel.members and vorbis in channel.members:
                     if payload.message_id == metadata["data"]["message-id"] or payload.message_id == metadata["data"]["og-message-id"] and member.id == metadata["data"]["author-id"]:
+
                         if payload.emoji.name == "\U0001f3b5":
                             voice.pause()
-                            await message.remove_reaction("\U0001f3b5", member)
-                        elif payload.emoji.name == "\U0001f3a7":
-                            voice.resume()
-                            await message.remove_reaction("\U0001f3a7", member)
 
                         elif payload.emoji.name == "\U0001f3b6":
                             voice.pause()
                             voice.stop()
+
+                            config["config"]["loop"] = False
+                            make_asset(f"{config_location}\\{payload.guild_id}\\config.json", "w", config, 4)
+
                             await message.remove_reaction("\U0001f3b6", member)
+                        elif payload.emoji.name == "\U0001f4fc":
+                            song_list = []
+                            songsList = os.listdir(queue_location+f"\\{payload.guild_id}")
+
+                            embed.set_author(name="Queued Songs")
+
+
+
+                            for x in range(len(songsList)):
+                                song = songsList[x].split(".wav")[0]
+
+                                embed.add_field(name=f"Song {x+1}  Ø ", value=song, inline=False)
+
+                            embed.set_footer(text=f"Amount of songs left: {len(songsList)}")
+                            await ctx.send(embed=embed, delete_after=10)
+                            await message.remove_reaction("\U0001f4fc", member)
+                        elif payload.emoji.name == "\U0001f502":
+                            config["config"]["loop"] = True
+                            make_asset(f"{config_location}\\{payload.guild_id}\\config.json", "w", config, 4)
+
+
                     else:
                         return
                 else:
@@ -740,6 +832,32 @@ class listeners(commands.Cog):
                 return
         except AttributeError:
             return
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+
+        emoji, guildID = payload.emoji.name, payload.guild_id
+        metadata = return_data(f"{metadata_location}\\{guildID}\\payload-data.json")
+        messageChannel = self.client.get_channel(payload.channel_id)
+        message = await messageChannel.fetch_message(payload.message_id)
+        config = return_data(f"{config_location}\\{guildID}\\config.json")
+
+        try:
+            guild = self.client.get_guild(payload.guild_id)
+            voice = get(self.client.voice_clients, guild=guild)
+
+            if message.author.id == metadata["data"]["author-id"] and message.id == metadata["data"]["message-id"] or message.id == metadata["data"]["og-message-id"]:
+                if emoji == "\U0001f502":
+                    config["config"]["loop"] = False
+                    make_asset(f"{config_location}\\{guildID}\\config.json", "w", config, 4)
+                elif emoji == "\U0001f3b5":
+                    voice.resume()
+                else:
+                    return
+            else:
+                return
+        except AttributeError:
+            pass
 
 def setup(client):
     client.add_cog(listeners(client))
