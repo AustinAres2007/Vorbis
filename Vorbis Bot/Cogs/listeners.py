@@ -113,13 +113,6 @@ class listeners(commands.Cog):
 
         channel = None
         member = message.author
-        main_usr_data = return_data(f"{user_location}\\{message.guild.id}\\{message.author.id}\\{message.author.id}.json")
-        true_false = [True, False, True, None]
-
-        #if random.choice(true_false) is True:
-        #    pass
-        #else:
-        #    return
 
         try:
             if return_data(f"{config_location}\\{message.guild.id}\\config.json", "config", "log_channel") is not None:
@@ -131,6 +124,7 @@ class listeners(commands.Cog):
                 guild = f"\\{message.guild.id}"
                 full_user_path = user_location+guild
                 channel_path = f"{config_location}\\{message.guild.id}\\config.json"
+                main_usr_data = return_data(f"{user_location}\\{message.guild.id}\\{message.author.id}\\{message.author.id}.json")
 
             except AttributeError:
                 pass
@@ -213,7 +207,15 @@ class listeners(commands.Cog):
 
                         data = {}
                         numbers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
                         level_numbers = [50, 60, 70, 80, 90, 100]
+                        level_numbers_100 = [100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+                        level_numbers_200 = [200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300]
+                        level_numbers_300 = [300, 310, 320, 330, 340, 350, 360, 370, 380, 390, 400]
+                        level_numbers_400 = [400, 410, 420, 430, 440, 450, 460, 470, 480, 490, 500]
+                        level_numbers_500 = [500, 510, 520, 530, 540, 550, 560, 570, 580, 590, 600, 1000]
+
+                        level_values = None
 
                         if message.guild.premium_tier == 0:
                             new_exp = usr_exp+1
@@ -237,6 +239,21 @@ class listeners(commands.Cog):
                             usr_lvl = usr_lvl+1
                             role = None
                             next_milestone = None
+
+                            if usr_lvl < 100:
+                                level_values = level_numbers
+                            elif usr_lvl > 100 and usr_lvl < 200:
+                                level_values = level_numbers_100
+                            elif usr_lvl > 200 and usr_lvl < 300:
+                                level_values = level_numbers_200
+                            elif usr_lvl > 300 and usr_lvl < 400:
+                                level_values = level_numbers_300
+                            elif usr_lvl > 400 and usr_lvl < 500:
+                                level_values = level_numbers_400
+                            elif usr_lvl > 500:
+                                level_values = level_numbers_500
+
+                            until_nxt_lvl = int(random.choice(level_values))
 
                             if usr_lvl in numbers:
                                 role = discord.utils.get(self.client.get_guild(message.guild.id).roles, name=f"Level {usr_lvl}")
@@ -409,7 +426,10 @@ class listeners(commands.Cog):
         except FileNotFoundError:
             pass
 
-        os.chdir(full_user_path)
+        try:
+            os.chdir(full_user_path)
+        except FileNotFoundError:
+            os.mkdir(full_user_path)
 
         if os.path.isdir(full_user_path+f"\\{member.id}") != True:
             os.mkdir(f"{member.id}")
@@ -767,11 +787,14 @@ class listeners(commands.Cog):
         except KeyError:
             return
 
-        embed.set_author(name="Notification")
-        embed.add_field(name=l_name, value=l_value)
-        embed.set_image(url=l_img)
+        try:
+            embed.set_author(name="Notification")
+            embed.add_field(name=l_name, value=l_value)
+            embed.set_image(url=l_img)
 
-        await self.client.get_guild(g_id).get_channel(chnl_id).send(embed=embed)
+            await self.client.get_guild(g_id).get_channel(chnl_id).send(embed=embed)
+        except discord.errors.Forbidden():
+            pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
