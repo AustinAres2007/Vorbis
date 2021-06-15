@@ -1,7 +1,7 @@
 """Made by: Austin Ares, Fabian Kuzbiel, Elina"""
 
 
-import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, random, logging, asyncio, lyricsgenius, threading, pyautogui, mouse, urllib, requests
+import discord, time, os, shutil, youtube_dl, youtubesearchpython, json, datetime, random, logging, asyncio, lyricsgenius, threading, pyautogui, mouse, urllib, requests, pytz
 
 from discord.ext import commands, tasks
 from discord.utils import get
@@ -14,7 +14,7 @@ CLIENT_SECRET = None
 GENIUS_ID = None
 GENIUS_SECRET = None
 GENIUS_ACCESS_TOKEN = None
-MAIN_GUILD = None
+MAIN_GUILD = 0
 RST_CNT = 0
 
 """Location Variables"""
@@ -220,20 +220,6 @@ def recomendPlaylistTimer():
     clock = return_data(f"{system_location}\\playlist-clock.json")
 
     while True:
-
-        if RST_CNT <= clock["setting"]["last-update"] and RST_CNT >= clock["setting"]["last-update"]-1:
-            RST_CNT = RST_CNT+1
-
-            data = {}
-            data["setting"] = {
-                "last-update": RST_CNT,
-                "time": str(datetime.datetime.now())
-            }
-
-            make_asset(f"{system_location}\\playlist-clock.json", "w", data, 4)
-        else:
-            print("TimerError")
-            break
 
         curnt_time = str(datetime.datetime.now())
 
@@ -472,6 +458,9 @@ WHITE_T = (255, 255, 255)
 MED_PURPLE_T = (147, 112, 219)
 LIGHT_BLUE_T = (0,128,255)
 RED_T = (255, 0, 0)
+FLAMINGO_T = (252, 142, 172)
+JG_T = (41, 171, 135)
+
 """Bot Code"""
 
 @client.remove_command("help")
@@ -517,6 +506,7 @@ async def assist(ctx):
             embed.add_field(name=f":musical_note: More Music Commands :musical_note:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}lyrics", value=f"Will return specified song lyrics by a specified artist, (AKA: Will return song lyrics, does this via Genius™ API, if you do not pass Artist name or a song, will return A command Failure.)")
             embed.add_field(name=f"{CLIENT_PREFIX}loop", value=f"Will turn on / off song looping depending on what it's currently on.")
+            embed.add_field(name=f"{CLIENT_PREFIX}load", value=f"Will load a custom video / audio file and save it so your song queue (Note: Accepted formats are: MP4, MP3, MOV, WAV)")
             embed.add_field(name=f":moneybag: Economy Commands :moneybag:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}buy", value=f"Will buy an item, as of now, you can only buy rolls, but I plan to expand this. The item has to be in the shop, and you have to be able to afford it, (Note: To look at your own balance, do {CLIENT_PREFIX}profile")
             embed.add_field(name=f"{CLIENT_PREFIX}shop", value=f"Will show what items are available in the shop, items in the shops are added by administrators, to buy something, you need money, you can earn money by talking in chat. (Note: This economy system is not accurate to in-real-life scenarios, and is in dollars)")
@@ -527,7 +517,8 @@ async def assist(ctx):
             embed.add_field(name=f"{CLIENT_PREFIX}comment", value=f"Comments on a playlist (Note: to comment on a playlist, you must have queued that playlist first, with {CLIENT_PREFIX}queueplaylist)")
             embed.add_field(name=f"{CLIENT_PREFIX}read", value=f"Will read comments from a selected playlist. (Note: It will pick random messages, but you can read a certain message if you know the ID)")
             embed.add_field(name=f"{CLIENT_PREFIX}delete", value=f"Will delete a selected comment from a selected playlist. (Note: you cannot delete other peoples comments, and you cannot reverse the deletion of a comment)")
-            embed.add_field(name=f"{CLIENT_PREFIX}image", value=f"WIll send an image of your User Profile.")
+            embed.add_field(name=f"{CLIENT_PREFIX}card", value=f"Will send an image of your User Profile. (Note: You can only view your own Profile Image, unless someone sends you their one)")
+
 
             embed.set_footer(text=f"Do {CLIENT_PREFIX}help or {CLIENT_PREFIX}help 3 for more commands")
             return await ctx.send(embed=embed)
@@ -680,7 +671,6 @@ async def play(ctx):
         i = i[1].split('>')[0]
 
         user = server.get_member(int(i))
-        print(user.activities)
 
         """Gets Spotify Status from chosen player (if user is playing a song on spotify)"""
 
@@ -771,15 +761,25 @@ async def play(ctx):
                     os.remove(music_file)
             else:
                 next_song = queue_full_path+f"\\{os.listdir(queue_full_path)[0]}"
+                next_song_nfext = os.listdir(queue_full_path)[0].split(".wav")
+
                 if os.path.isfile(music_file):
                     os.remove(music_file)
 
-                next_song_nfext = os.listdir(queue_full_path)[0].split(".wav")
-                default_filename = youtubesearchpython.SearchVideos(keyword=next_song_nfext, offset=1, mode="dict", max_results=1)
+                if next_song_nfext[0].endswith("CUSTOM_LOADED"):
+                    name = "Custom Song"
+                    view = "0"
+                    channels = client.get_user(next_song_nfext[1].split("-")[0])
 
-                name = str(default_filename.titles[0])
-                view = str(default_filename.views[0])
-                channels = str(default_filename.channels[0])
+                else:
+
+                    next_song_nfext = os.listdir(queue_full_path)[0].split(".wav")
+                    default_filename = youtubesearchpython.SearchVideos(keyword=next_song_nfext[0], offset=1, mode="dict", max_results=1)
+
+
+                    name = str(default_filename.titles[0])
+                    view = str(default_filename.views[0])
+                    channels = str(default_filename.channels[0])
 
                 with open(meta_full_path+"\\metadata.json", 'w+') as write_metadata:
 
@@ -958,181 +958,185 @@ async def queueplaylist(ctx, *, playlist=None):
             embed.color = AZURE
             make_asset(globalPath, "w", globalProfile, 4)
 
-    with open(playlist_location+f"\\{playlist}\\{playlist}.json") as queued_playlist:
+    if os.path.isfile(playlist_location+f"\\{playlist}\\{playlist}.json"):
+        with open(playlist_location+f"\\{playlist}\\{playlist}.json") as queued_playlist:
 
-        globalProfile["global"]["auto-correct"]["failure"]["command-completion"] = True
-        globalProfile["global"]["auto-correct"]["failure"]["correct-playlist"] = playlist
-
-
-        text = queued_playlist.read()
-        json_text = json.loads(text)
-
-        json_text_file = json_text['info']
-
-        privacy_setting = json_text_file['privicy']
-        author = json_text["metadata"]['playlist-author']
-        playCount = int(json_text["metadata"]['queue-count'])+1
-
-        songs = json_text_file['playlist'].split(',')
-
-        make_asset(globalPath, "w", globalProfile, 4)
-
-        async def queue_playlist():
-            authors = []
-
-            for q in range(len(author)):
-                user = client.get_user(author[q])
-                authors.append(f"{user}")
-
-            playlist_path = f"{playlist_location}\\{playlist}\\{playlist}.json"
-            playlist_data = return_data(playlist_path)
-
-            embed.set_author(name=f'Queueing the Playlist Ø "{playlist}"')
-
-            songListFull = ", ".join(songs)
-            authors = ", ".join(authors)
-
-            embed.add_field(name="Author of Playlist> ", value=authors, inline=False)
-            embed.add_field(name="Songs > ", value=songListFull, inline=False)
-            embed.add_field(name="Amout of Songs > ", value=len(songs), inline=False)
-            embed.set_footer(text=f"Once a green tick reaction is shown on the command message, your playlist will have finished queueing,  if you see a red circle with a whiteline, the download failed.")
-            await ctx.send(embed=embed)
-
-            for x in range(len(songs)):
-
-                if len(os.listdir(full_queue_path)) > 14:
-
-                    embed.color = RED
-                    embed.set_author(name="Queue is at song limit! (Limit is 15)")
-
-                    return await ctx.send(embed=embed)
-
-                url = youtubesearchpython.SearchVideos(songs[x], offset=1, mode='dict', max_results=1)
-
-                link = str(url.links[0])
-                title = str(url.titles[0])
-                channel = str(url.channels[0])
-                length = str(url.durations[0])
-
-                len_split = length.split(":")
-                loop = True
-
-                if int(len(len_split)) >= 3 and int(len_split[0]) >= 1:
+            globalProfile["global"]["auto-correct"]["failure"]["command-completion"] = True
+            globalProfile["global"]["auto-correct"]["failure"]["correct-playlist"] = playlist
 
 
-                    embed.color = RED
-                    embed.set_author(name=f"Song / Video is too long! Limit is 1 hour! (Song is {int(len_split[0])})")
+            text = queued_playlist.read()
+            json_text = json.loads(text)
 
-                    return await ctx.send(embed=embed)
+            json_text_file = json_text['info']
 
-                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                    try:
+            privacy_setting = json_text_file['privicy']
+            author = json_text["metadata"]['playlist-author']
+            playCount = int(json_text["metadata"]['queue-count'])+1
+
+
+            songs = json_text_file['playlist'].split(',')
+
+            make_asset(globalPath, "w", globalProfile, 4)
+
+            async def queue_playlist():
+                authors = []
+
+                for q in range(len(author)):
+                    user = client.get_user(author[q])
+                    authors.append(f"{user}")
+
+                playlist_path = f"{playlist_location}\\{playlist}\\{playlist}.json"
+                playlist_data = return_data(playlist_path)
+
+                embed.set_author(name=f'Queueing the Playlist Ø "{playlist}"')
+
+                songListFull = ", ".join(songs)
+                authors = ", ".join(authors)
+
+                embed.add_field(name="Author of Playlist> ", value=authors, inline=False)
+                embed.add_field(name="Songs > ", value=songListFull, inline=False)
+                embed.add_field(name="Amout of Songs > ", value=len(songs), inline=False)
+                embed.set_footer(text=f"Once a green tick reaction is shown on the command message, your playlist will have finished queueing,  if you see a red circle with a whiteline, the download failed.")
+                await ctx.send(embed=embed)
+
+                for x in range(len(songs)):
+
+                    if len(os.listdir(full_queue_path)) > 14:
+
+                        embed.color = RED
+                        embed.set_author(name="Queue is at song limit! (Limit is 15)")
+
+                        return await ctx.send(embed=embed)
+
+                    url = youtubesearchpython.SearchVideos(songs[x], offset=1, mode='dict', max_results=1)
+
+                    link = str(url.links[0])
+                    title = str(url.titles[0])
+                    channel = str(url.channels[0])
+                    length = str(url.durations[0])
+
+                    len_split = length.split(":")
+                    loop = True
+
+                    if int(len(len_split)) >= 3 and int(len_split[0]) >= 1:
+
+
+                        embed.color = RED
+                        embed.set_author(name=f"Song / Video is too long! Limit is 1 hour! (Song is {int(len_split[0])})")
+
+                        return await ctx.send(embed=embed)
+
+                    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                         try:
-                            filtered = filt_str(title)
+                            try:
+                                filtered = filt_str(title)
 
-                            def queueSongs():
-                                if loop is True:
-                                    ydl.download([link])
-                            threading.Thread(target=queueSongs).start()
+                                def queueSongs():
+                                    if loop is True:
+                                        ydl.download([link])
+                                threading.Thread(target=queueSongs).start()
 
-                        except (youtube_dl.utils.DownloadError, urllib.error.HTTPError):
-                            fail = True
-                            return await ctx.message.add_reaction("\u26D4")
-                        try:
-                            raise IndexError
+                            except (youtube_dl.utils.DownloadError, urllib.error.HTTPError):
+                                fail = True
+                                return await ctx.message.add_reaction("\u26D4")
+                            try:
+                                raise IndexError
 
-                        except (IndexError, PermissionError):
+                            except (IndexError, PermissionError):
 
-                            while loop is True:
+                                while loop is True:
 
-                                await asyncio.sleep(1)
-                                if len(os.listdir()) == 1 and os.listdir()[0].endswith(".wav"):
+                                    await asyncio.sleep(1)
+                                    if len(os.listdir()) == 1 and os.listdir()[0].endswith(".wav"):
 
-                                    if "playscript" in playlist_data["metadata"].keys():
+                                        if "playscript" in playlist_data["metadata"].keys():
 
-                                        os.rename(os.listdir()[0], f"{playlist_data['metadata']['playscript'][x]} - {filtered}.wav")
-                                        shutil.move(os.listdir()[0], full_queue_path)
+                                            os.rename(os.listdir()[0], f"{playlist_data['metadata']['playscript'][x]} - {filtered}.wav")
+                                            shutil.move(os.listdir()[0], full_queue_path)
+                                        else:
+
+                                            os.rename(os.listdir()[0], filtered+".wav")
+                                            shutil.move(os.listdir()[0], full_queue_path)
+
+                                        await ctx.message.add_reaction(client.get_guild(MAIN_GUILD).emojis[x])
+                                        loop = False
+
                                     else:
-
-                                        os.rename(os.listdir()[0], filtered+".wav")
-                                        shutil.move(os.listdir()[0], full_queue_path)
-
-                                    await ctx.message.add_reaction(client.get_guild(MAIN_GUILD).emojis[x])
-                                    loop = False
-
-                                else:
-                                    continue
+                                        continue
 
 
-                    except shutil.Error:
-                        return await ctx.message.add_reaction("\u26D4")
-                        fail = True
+                        except shutil.Error:
+                            return await ctx.message.add_reaction("\u26D4")
+                            fail = True
 
-        if privacy_setting == "public" or ctx.author.id in author:
-            await queue_playlist()
-
-            if fail is True:
-                return
-            playlist_path = f"{playlist_location}\\{playlist}\\{playlist}.json"
-            playlist_data = return_data(playlist_path)
-            playlist_data["metadata"]["queue-count"] = playCount
-            globalData = return_data(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json")
-            metadata = return_data(metadata_location+f"\\{ctx.guild.id}\\payload-data.json")
-
-
-            try:
-
-                playlistID = playlist_data["metadata"]["playlist-id"]
-
-                if playlistID in globalData["global"]["listened-playlist-list"]:
-                    pass
-                else:
-                    globalData["global"]["listened-playlist-list"].append(playlistID)
-
-                globalData["global"]["playlist-list"][f"{playlistID}"] = {
-                    "playlist-id": playlistID,
-                    "playlist": playlist,
-                    "play-count": int(globalData["global"]["playlist-list"][f"{playlistID}"]["play-count"]+1)
-                }
-
-            except (TypeError, KeyError):
-                globalData["global"]["playlist-list"][f"{playlistID}"] = {
-                    "playlist-id": playlistID,
-                    "playlist": playlist,
-                    "play-count": 0
-                }
-            finally:
-
-                metadata["data"]["queued-playlist"] = playlist
-
-                make_asset(playlist_path, "w", playlist_data, 4)
-                make_asset(metadata_location+f"\\{ctx.guild.id}\\payload-data.json", "w", metadata, 4)
-                make_asset(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json", "w", globalData, 4)
-
-        elif privacy_setting == "server":
-            if int(ctx.guild.id) in json_text["metadata"]['server-playlist']:
+            if privacy_setting == "public" or ctx.author.id in author:
                 await queue_playlist()
+
                 if fail is True:
                     return
+                playlist_path = f"{playlist_location}\\{playlist}\\{playlist}.json"
+                playlist_data = return_data(playlist_path)
+                playlist_data["metadata"]["queue-count"] = playCount
+                globalData = return_data(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json")
+                metadata = return_data(metadata_location+f"\\{ctx.guild.id}\\payload-data.json")
+
+
+                try:
+
+                    playlistID = playlist_data["metadata"]["playlist-id"]
+
+                    if playlistID in globalData["global"]["listened-playlist-list"]:
+                        pass
+                    else:
+                        globalData["global"]["listened-playlist-list"].append(playlistID)
+
+                    globalData["global"]["playlist-list"][f"{playlistID}"] = {
+                        "playlist-id": playlistID,
+                        "playlist": playlist,
+                        "play-count": int(globalData["global"]["playlist-list"][f"{playlistID}"]["play-count"]+1)
+                    }
+
+                except (TypeError, KeyError):
+                    globalData["global"]["playlist-list"][f"{playlistID}"] = {
+                        "playlist-id": playlistID,
+                        "playlist": playlist,
+                        "play-count": 0
+                    }
+                finally:
+
+                    metadata["data"]["queued-playlist"] = playlist
+
+                    make_asset(playlist_path, "w", playlist_data, 4)
+                    make_asset(metadata_location+f"\\{ctx.guild.id}\\payload-data.json", "w", metadata, 4)
+                    make_asset(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json", "w", globalData, 4)
+
+            elif privacy_setting == "server":
+                if int(ctx.guild.id) in json_text["metadata"]['server-playlist']:
+                    await queue_playlist()
+                    if fail is True:
+                        return
+                else:
+                    embed.color = RED
+                    embed.set_author(name="This Playlist is server only (meaning, the playlist is whitelisted, and only selected servers can use this playlist)")
+
+                    return await ctx.send(embed=embed)
             else:
                 embed.color = RED
-                embed.set_author(name="This Playlist is server only (meaning, the playlist is whitelisted, and only selected servers can use this playlist)")
+                embed.set_author(name="This playlist is private!")
 
                 return await ctx.send(embed=embed)
-        else:
-            embed.color = RED
-            embed.set_author(name="This playlist is private!")
+            embed.set_author(name=f'Queued the playlist Ø "{playlist}"')
 
-            return await ctx.send(embed=embed)
-        embed.set_author(name=f'Queued the playlist Ø "{playlist}"')
+            for x in range(len(os.listdir(temp_location+f"\\{ctx.guild.id}\\"))):
+                os.remove(os.listdir()[x])
 
-        for x in range(len(os.listdir(temp_location+f"\\{ctx.guild.id}\\"))):
-            os.remove(os.listdir()[x])
+            for y in range(len(songs)):
+                await ctx.message.remove_reaction(client.get_guild(MAIN_GUILD).emojis[y], client.get_user(798867893910765579))
 
-        for y in range(len(songs)):
-            await ctx.message.remove_reaction(client.get_guild(MAIN_GUILD).emojis[y], client.get_user(798867893910765579))
-
-        await ctx.message.add_reaction("\u2705")
+            await ctx.message.add_reaction("\u2705")
+    else:
+        await ctx.send("This playlist no longer exists, or the name was changed.")
 
 
 
@@ -1273,7 +1277,7 @@ async def queue(ctx, *, url=None):
 
             return await ctx.send(embed=embed)
         else:
-            print("Song is not already queued, continuing..")
+            pass
 
 
         """Checks if the song is below 1 Hour"""
@@ -1421,14 +1425,18 @@ async def skip(ctx):
     await ctx.send(embed=embed)
 
 @client.command(aliases=['v'])
-async def volume(ctx, volume_float):
+async def volume(ctx, volume_float=None):
 
     guild = f"\\{ctx.message.guild.id}"
     full_config_path = config_location+guild
     embed = discord.Embed(colour=LIGHT_BLUE)
+
+
     try:
+        volume_float = float(volume_float)
+
         if volume_float is None:
-            embed.set_author(name="You need to set a volume. (In a float value, like: 0.1, 0.6, 1.7)")
+            embed.set_author(name="The volume has to be A Floating Point Value, or an integer value.")
         elif volume_float > 10:
             embed.set_author(name="You cannot go any higher than 10, you would get hearing damage.")
         else:
@@ -1441,7 +1449,7 @@ async def volume(ctx, volume_float):
             embed.set_author(name=f"Changed volume to > {volume_float}")
 
 
-    except TypeError:
+    except (TypeError, ValueError):
         embed.set_author(name="The volume has to be A Floating Point Value, or an integer value.")
 
     finally:
@@ -1600,6 +1608,8 @@ async def playlist(ctx):
 
     playlist_id = random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)+random.choice(id_letters)
 
+    if len(playlist_name) > 14:
+        return await ctx.send("The playlist name has to be under 14 characters.")
 
     url = filt_str_mod(str(url))
 
@@ -1727,7 +1737,7 @@ async def playlists(ctx, *, playlist=None):
             playlist_metadata = json_data['metadata']
 
             if playlist_json["privicy"] == "public" or ctx.author.id in playlist_metadata["playlist-author"]:
-                print("CHECK 2")
+
                 if playlistOld is None:
 
                     if str(playlistID) != str(playlist_metadata["playlist-id"]):
@@ -1893,13 +1903,14 @@ async def usage(ctx):
             embed.add_field(name=":musical_note:  More Music Commands' Usage  :musical_note:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}lyrics > ", value=f"{CLIENT_PREFIX}lyrics <Artist Name>, <Song Name> remember to seperate Artist Name and Song Name with a comma")
             embed.add_field(name=f"{CLIENT_PREFIX}loop > ", value=f"{CLIENT_PREFIX}loop")
+            embed.add_field(name=f"{CLIENT_PREFIX}load > ", value=f"{CLIENT_PREFIX}load <URL of video>")
             embed.add_field(name=":soccer:  More General Commands' Usage  :soccer:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}credit > ", value=f"{CLIENT_PREFIX}credit")
             embed.add_field(name=f"{CLIENT_PREFIX}sendfeedback > ", value=f"{CLIENT_PREFIX}sendfeedback <feedback>")
             embed.add_field(name=f"{CLIENT_PREFIX}comment > ", value=f"{CLIENT_PREFIX}comment <comment text> (Note: To send a comment to a playlist, you have to have queued that playlist with {CLIENT_PREFIX}queueplaylist)")
             embed.add_field(name=f"{CLIENT_PREFIX}read > ", value=f"{CLIENT_PREFIX}read <playlist you want to read comments from>, <comment ID (Optional)>")
             embed.add_field(name=f"{CLIENT_PREFIX}delete > ", value=f"{CLIENT_PREFIX}delete <playlist of where the comment was posted>, <comment ID>")
-            embed.add_field(name=f"{CLIENT_PREFIX}image > ", value=f"{CLIENT_PREFIX}image")
+            embed.add_field(name=f"{CLIENT_PREFIX}card > ", value=f"{CLIENT_PREFIX}card")
             embed.add_field(name=":moneybag:  Economy Commands' Usage  :moneybag:", value="\u200b", inline=False)
             embed.add_field(name=f"{CLIENT_PREFIX}shop > ", value=f"{CLIENT_PREFIX}shop")
             embed.add_field(name=f"{CLIENT_PREFIX}buy > ", value=f"{CLIENT_PREFIX}buy <item name>")
@@ -1917,6 +1928,9 @@ async def usage(ctx):
             embed.add_field(name=f"{CLIENT_PREFIX}boot > ", value=f"{CLIENT_PREFIX}boot <Player Fullname including tag>")
             embed.add_field(name=f"{CLIENT_PREFIX}exile > ", value=f"{CLIENT_PREFIX}exile <Player Fullname including tag>")
             embed.add_field(name=f"{CLIENT_PREFIX}excuse > ", value=f"{CLIENT_PREFIX}excuse <Player Fullname including tag>")
+            embed.add_field(name=":eject:  Even More Playlist Commands' Usage  :eject:", value="\u200b", inline=False)
+            embed.add_field(name=f"{CLIENT_PREFIX}rsong > ", value=f"{CLIENT_PREFIX}rsong <playlist name>, <Song name, or position in playlist>")
+            embed.add_field(name=f"{CLIENT_PREFIX}prname > ", value=f"{CLIENT_PREFIX}prname <New name of playlist>, <Playlist you want to change the name of>")
 
         else:
             raise IndexError("No Error")
@@ -2050,84 +2064,13 @@ async def profile(ctx, member : discord.User=None):
             user_info = json_formatted[str(user_id)]
             userBalance = return_data(f"{user_location}\\{ctx.guild.id}\\{ctx.author.id}\\{ctx.author.id}-bank.json")
             levels = [50, 60, 70, 80, 90, 100]
+            file_names = ["bot", "Bot", "Vorbis"]
 
             if calculatePopularPlaylist()[1] is None:
                 favoritePlaylist = "Does not have one"
             else:
                 favoritePlaylist = calculatePopularPlaylist()[1]
 
-            with requests.get(str(member.avatar_url), stream=True) as dataStream:
-                avatar_location = f"{user_location}\\{ctx.guild.id}\\{user_info['member-id']}\\avatar.png"
-
-                if dataStream.status_code == 200:
-                    dataStream.raw.decode_content = True
-
-                    with open(avatar_location, 'wb') as avatar:
-                        shutil.copyfileobj(dataStream.raw, avatar)
-
-                else:
-                    pass
-
-                with Image.open(f"{asset_location}\\profile-template.png") as file:
-                    size = (400, 400)
-
-                    level_progress_bar_list = []
-                    progress_bar = json_formatted["progress-bar"]["progress-bar-count"]
-
-                    avatar_ = Image.open(avatar_location)
-                    avatar_ = avatar_.convert("L")
-                    avatar_ = avatar_.resize(size, Image.ANTIALIAS)
-
-                    file.paste(avatar_, (580, 580))
-
-                    font = ImageFont.truetype(f"{gotham_font_location}\\{_font_}", 31)
-                    font_ = ImageFont.truetype(f"{gotham_font_location}\\{_font_}", 17)
-                    image = ImageDraw.Draw(file)
-                    COLOUR = None
-                    rank = None
-
-                    if current_level >= 100 and current_level < 200:
-                        COLOUR = AZURE_T
-                        rank = "Centennial"
-
-                    elif current_level >= 200 and current_level < 300:
-                        COLOUR = RED_T
-                        rank = "Cardinal"
-                    else:
-                        COLOUR = WHITE_T
-                        rank = "Citizen"
-
-                    if "description" in list(globalData["global"].keys()):
-                        image.text((25, 25), text=f"Username: {user_info['member-name']}\n\nUser ID: {user_info['member-id']}\n\nUser Join Date: {user_info['member-joindate'].split('.')[0]}\n\nUser Level: {current_level}\n\nUser Experience: {current_exp+1}\n\nUntil Next Level Up: {int(until_next_levelup-current_exp-1)}\n\nServer: {ctx.guild}\n\nUser Description: {globalData['global']['description']}\n\nRank: {rank}", fill=COLOUR, font=font)
-                    else:
-                        image.text((25, 25), text=f"Username: {user_info['member-name']}\n\nUser ID: {user_info['member-id']}\n\nUser Join Date: {user_info['member-joindate'].split('.')[0]}\n\nUser Level: {current_level}\n\nServer: {ctx.guild}\n\nRank: {rank}", fill=COLOUR, font=font)
-
-                    image.rectangle([1020, 1022, 4, 0], fill=None, outline=COLOUR, width=6)
-                    image.rectangle([580, 580, 980, 980], fill=None, outline=COLOUR, width=4)
-                    image.rectangle([40, 880, 500, 940], fill=None, outline=COLOUR, width=4)
-
-                    image.text((210, 835), text=f"Level {current_level}", fill=COLOUR, font=font)#
-
-                    y = 0
-                    z = 50
-
-                    if until_next_levelup == 50:
-                        y=18.8
-                    elif until_next_levelup == 60:
-                        y=15.6
-                    elif until_next_levelup == 70:
-                        y=13.3
-                    elif until_next_levelup == 80:
-                        y=11.3
-                    elif until_next_levelup == 90:
-                        y=10
-                    elif until_next_levelup == 100:
-                        y=9
-
-                    image.rectangle([40, 880, z+y*progress_bar, 940], fill=COLOUR, width=4)
-
-                    file.save(f"{user_location}\\{ctx.guild.id}\\{user_info['member-id']}\\profile.png")
-                    os.remove(avatar_location)
 
             embed.set_author(name=f'Here is "{user_info["member-name"]}" Profile', icon_url=vorbis_img)
             embed.add_field(name=f"User Name  Ø   {user_info['member-name']}", value="\u200b", inline=False)
@@ -2135,6 +2078,10 @@ async def profile(ctx, member : discord.User=None):
             embed.add_field(name=f"User Join Date   Ø   {user_info['member-joindate'].split('.')[0]}", value="\u200b", inline=False)
             embed.add_field(name=f"Current User Level   Ø   {current_level}", value="\u200b", inline=False)
             embed.add_field(name=f"Favorite Playlist   Ø   {favoritePlaylist}", value="\u200b", inline=False)
+
+            if member.activity.name == "Atom Editor":
+                if str(member.activity.details).split(" ")[-1] in file_names:
+                    embed.add_field(name=f"Programming a Bot of some sort  Ø  {member.activity.details}", value="\u200b")
 
             if member.id == ctx.author.id:
                 embed.add_field(name=f"User Balance   Ø   {userBalance[str(ctx.author.id)]['balance']}", value="\u200b", inline=False)
@@ -2614,8 +2561,6 @@ async def owner_leave(ctx, server_id : int):
 
     guild = client.get_guild(server_id)
 
-    print(f"Leaving {guild}")
-
     try:
         await guild.get_channel(guild.system_channel.id).send(f"I am leaving this server, upon owners asking. Do not try to invite me to this server again.\n\nDEBUG>>{guild.id}")
         await guild.leave()
@@ -2632,6 +2577,7 @@ async def pprivacy(ctx):
     done1 = False
     args = parseArgs(ctx)
 
+    settings = ["public", "private", "server"]
     try:
         setting = args[0]
         playlist_name = args[1]
@@ -2648,10 +2594,8 @@ async def pprivacy(ctx):
 
             setting = await client.wait_for('message')
 
-            print(setting)
-
             if setting.guild.id == ctx.guild.id and setting.channel.id == ctx.channel.id and setting.author.id == ctx.author.id:
-                if setting.content == "private" or setting.content == "public":
+                if setting.content in settings:
 
                     setting = setting.content
 
@@ -2687,9 +2631,11 @@ async def pprivacy(ctx):
             embed.set_author(name="You're not the owner of this playlist")
 
         else:
-            make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
-            embed.set_author(name=f"Changed privacy setting to {setting}")
-
+            if setting in settings:
+                make_asset(file=full_path, mode="w", data=playlist_data, indention=4)
+                embed.set_author(name=f"Changed privacy setting to {setting}")
+            else:
+                embed.set_author(name=f"''{setting}'' is not a privacy setting")
         await ctx.send(embed=embed)
 
     except TypeError:
@@ -2863,7 +2809,6 @@ async def rsong(ctx):
 
     try:
         content = parseArgs(ctx)
-        print(content)
         try:
             try:
                 playlist_name = content[0]
@@ -2907,8 +2852,9 @@ async def rsong(ctx):
                 await sendEmbed(embed, ctx, f"You're not the owner of this playlist.")
         except AttributeError:
             await sendEmbed(embed, ctx, "Missing Arguments (/rsong <Playlist Name>, <Song> Remember to add a comma between the Playlist Name and The song)")
-    except FileNotFoundError:
-        await sendEmbed(embed, ctx, f"No playlist with the name {playlist_name}")
+
+    except (TypeError, FileNotFoundError):
+        await sendEmbed(embed, ctx, f"No playlist with the name ''{playlist_name}''")
 
 @client.command(aliases=["at"])
 async def atag(ctx):
@@ -3781,7 +3727,7 @@ async def loop(ctx):
 async def restart(ctx):
     await ctx.send("Restarting Script...")
 
-    pyautogui.moveTo(955, 71, duration=1)
+    pyautogui.moveTo(955, 71, duration=3)
     mouse.click("left")
 
 @client.command()
@@ -4340,8 +4286,8 @@ async def excuse(ctx):
                             if len(b_player_list) == len(chat_data["metadata"]["user-info"]["banned-users"]):
                                 await ctx.send(f"No player with the name: ''{player}''")
 
-                        except Exception as e:
-                            print(e)
+                        except FileNotFoundError as e:
+                            return
 
                 except FileNotFoundError:
                     await ctx.send(f"FileNotFoundError: Only owners of chatooms can excuse people from being banned.\nIf you have deleted your chatroom, you would have been disconnected automatically.\nAnd I would have said: ''You're not connected to a chatroom''\nBut if you are seeing this, You were not disconnected in your user GlobalProfile Config.\nThis is a fatal error, please get in contact with bot author: Austin Ares\nTo get username, please do {CLIENT_PREFIX}credit")
@@ -4350,11 +4296,180 @@ async def excuse(ctx):
         await ctx.send("Missing Arguments")
 
 @client.command()
-async def image(ctx):
+async def card(ctx):
+
+    _font_ = "GothamBook.ttf"
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    tz = pytz.timezone('Etc/GMT+0')
+    time = datetime.datetime.now(tz)
+
     try:
-        await ctx.send(f"Note: This is still a work in progress, and this image refreshes everytime you do {CLIENT_PREFIX}profile, here.", file=discord.File(f"{user_location}\\{ctx.guild.id}\\{ctx.author.id}\\profile.png"))
-    except FileNotFoundError:
-        await ctx.send(f"You don't have a Global Image, do {CLIENT_PREFIX}profile, then do this command again.")
+
+        def calculatePopularPlaylist():
+            lengthOfPlaylists = len(globalData["global"]["playlist-list"])
+            playlistList = []
+            mostPopularPlaylist = [0, None]
+
+            for x in range(0, lengthOfPlaylists):
+                playlist = globalData["global"]["listened-playlist-list"][x]
+                dictPath = globalData["global"]["playlist-list"][playlist]
+
+                if checkPlaylistExistance(dictPath["playlist"]):
+
+                    if int(dictPath["play-count"]) > mostPopularPlaylist[0]:
+                        mostPopularPlaylist.clear()
+                        mostPopularPlaylist.append(int(dictPath["play-count"]))
+                        mostPopularPlaylist.append(dictPath["playlist"])
+
+                else:
+                    del globalData["global"]["playlist-list"][playlist]
+                    globalData["global"]["listened-playlist-list"].remove(playlist)
+
+                    make_asset(global_profile+f"\\{ctx.author.id}\\{ctx.author.id}.json", "w", globalData, 4)
+                    continue
+
+            return mostPopularPlaylist
+
+        aID = ctx.author.id
+        gID = ctx.guild.id
+        exp_json = return_data(f"{user_location}\\{gID}\\{aID}\\{aID}-exp.json")
+        main_json = return_data(f"{user_location}\\{gID}\\{aID}\\{aID}.json")
+        globalData = return_data(f"{global_profile}\\{aID}\\{aID}.json")
+        user_info = main_json[str(aID)]
+
+        with requests.get(str(ctx.author.avatar_url), stream=True) as dataStream:
+            avatar_location = f"{user_location}\\{ctx.guild.id}\\{user_info['member-id']}\\avatar.png"
+
+            if dataStream.status_code == 200:
+                dataStream.raw.decode_content = True
+
+                with open(avatar_location, 'wb') as avatar:
+                    shutil.copyfileobj(dataStream.raw, avatar)
+
+            else:
+                pass
+
+            with Image.open(f"{asset_location}\\profile-template.png") as file:
+                size = (400, 400)
+
+                level_progress_bar_list = []
+                progress_bar = main_json["progress-bar"]["progress-bar-count"]
+
+                avatar_ = Image.open(avatar_location)
+                avatar_ = avatar_.resize(size, Image.ANTIALIAS)
+
+                file.paste(avatar_, (580, 580))
+
+                _font = ImageFont.truetype(f"{gotham_font_location}\\GothamBold.ttf", 35)
+                __font = ImageFont.truetype(f"{gotham_font_location}\\GothamBold.ttf", 39)
+                font = ImageFont.truetype(f"{gotham_font_location}\\{_font_}", 31)
+                font_ = ImageFont.truetype(f"{gotham_font_location}\\{_font_}", 20)
+
+                image = ImageDraw.Draw(file)
+                COLOUR = None
+                rank = None
+                popularPlaylist = "Doesn't have one"
+
+                current_level = exp_json[str(ctx.author.id)]['member-level']
+                until_next_levelup = exp_json[str(ctx.author.id)]['member-until-next-lvl']
+                SpotifyActivity = "Not doing Anything"
+
+                if current_level >= 100 and current_level < 200:
+                    COLOUR = AZURE_T
+                    rank = "Centennial"
+
+                elif current_level >= 200 and current_level < 300:
+                    COLOUR = RED_T
+                    rank = "Cardinal"
+
+                elif current_level >= 300 and current_level < 400:
+                    COLOUR = FLAMINGO_T
+                    rank = "Palmyra"
+
+                elif current_level >= 400 and current_level < 500:
+                    COLOUR = MED_PURPLE_T
+                    rank = "Hyacinth"
+
+                elif current_level >= 500:
+                    COLOUR = JG_T
+                    rank = "Nainital"
+
+                else:
+                    COLOUR = WHITE_T
+                    rank = "Citizen"
+
+                image.text((30, 30), text=f"{ctx.author} Profile Card", fill=COLOUR, font=_font)
+
+                for activity in ctx.author.activities:
+                    if isinstance(activity, Spotify):
+                        SpotifyActivity = "Listening to Spotify"
+                    else:
+                        SpotifyActivity = activity.name
+
+                if calculatePopularPlaylist()[1] is not None:
+                    popularPlaylist = calculatePopularPlaylist()[1]
+
+                if "description" in list(globalData["global"].keys()):
+                    image.text((30, 85), text=f"Username: {user_info['member-name']}\n\nUser ID: {user_info['member-id']}\n\nUser Join Date: {user_info['member-joindate'].split('.')[0]}\n\nUser Level: {exp_json[str(ctx.author.id)]['member-level']}\n\nUser Experience: {exp_json[str(ctx.author.id)]['member-exp']+1}\n\nUntil Next Level Up: {exp_json[str(ctx.author.id)]['member-until-next-lvl']}\n\nServer: {ctx.guild}\n\nUser Description: {globalData['global']['description']}\n\nRank: {rank}\n\nFavorite Playlist: {popularPlaylist}\n\nActivity: {SpotifyActivity}", fill=COLOUR, font=font)
+                else:
+                    image.text((30, 85), text=f"Username: {user_info['member-name']}\n\nUser ID: {user_info['member-id']}\n\nUser Join Date: {user_info['member-joindate'].split('.')[0]}\n\nUser Level: {exp_json[str(ctx.author.id)]['member-level']}\n\nServer: {ctx.guild}\n\nRank: {rank}\n\nFavorite Playlist: {popularPlaylist}\n\nActivity: {SpotifyActivity}", fill=COLOUR, font=font)
+
+                image.rectangle([1020, 1022, 4, 0], fill=None, outline=COLOUR, width=6)
+                image.rectangle([580, 580, 980, 980], fill=None, outline=COLOUR, width=4)
+                image.rectangle([40, 880, 500, 940], fill=None, outline=COLOUR, width=4)
+
+                year = str(time).split("-")[0]
+                month = str(time).split("-")[1]
+                day = str(time).split("-")[2].split(" ")[0]
+                tod = str(time).split("-")[2].split(" ")[1].split(".")[0]
+
+                image.text((185, 805), text=f"Level {current_level}", fill=COLOUR, font=__font)
+                image.text((25, 970), text=f"This card was last updated at {day} {months[int(month)-1]}, {year} at {tod}", fill=COLOUR, font=font_)
+
+                x = until_next_levelup/2
+                y = 450/x
+
+                image.rectangle([40, 880, 50+y*progress_bar, 940], fill=COLOUR, width=4)
+
+                file.save(f"{user_location}\\{ctx.guild.id}\\{user_info['member-id']}\\profile.png")
+                os.remove(avatar_location)
+
+        await ctx.send(file=discord.File(f"{user_location}\\{ctx.guild.id}\\{user_info['member-id']}\\profile.png"))
+
+    except AttributeError:
+        await ctx.send(f"You can only do this command within a server.")
+
+@client.command()
+async def load(ctx):
+    args = parseArgs(ctx, "url")
+    accepted_files = ["mp4", "wav", "mov", "mp3"]
+
+    if args[0] == "":
+        await ctx.send(f"Missing Arguments ({CLIENT_PREFIX}load <URL of music file>)")
+    else:
+        with requests.get(args[0], stream=True) as dataStream:
+            queued_location = f"{queue_location}\\{ctx.guild.id}\\{ctx.author.id}-CUSTOM_LOADED.wav"
+
+            if dataStream.status_code == 200 and args[0].split(".")[-1] in accepted_files:
+                dataStream.raw.decode_content = True
+
+                with open(queued_location, 'wb') as custom:
+                    shutil.copyfileobj(dataStream.raw, custom)
+
+                await ctx.send(f"Loaded custom song: ''{args[0].split('/')[-1]}'' (Note: if you try to queue another custom song, this custom song will be deleted)")
+            else:
+                await ctx.send(f"Could not download custom song, either whatever link you typed is not video / audio, or the download failed, if the latter option: Error Code: {dataStream.status_code}")
+
+@client.command()
+async def test(ctx):
+    member = ctx.author
+    embed = discord.Embed(color=AZURE)
+
+    if member.activity.name == "Atom Editor":
+        embed.set_author(name=f"{member} is Coding in Atom")
+        embed.add_field(name="Working on: ", value=member.activity.details)
+
+        await ctx.send(embed=embed)
 
 for filename in os.listdir(cog_location):
     if filename.endswith('.py'):
